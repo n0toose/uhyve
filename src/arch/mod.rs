@@ -39,3 +39,16 @@ pub fn detect_freq_from_sysinfo() -> std::result::Result<u32, FrequencyDetection
 		Err(FrequencyDetectionFailed)
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	#[test]
+	// derived from test_get_cpu_frequency_from_os() in src/arch/x86_64/mod.rs
+	fn test_detect_freq_from_sysinfo() {
+		let freq_res = crate::detect_freq_from_sysinfo();
+		assert!(freq_res.is_ok());
+		let freq = freq_res.unwrap();
+		assert!(freq > 0);
+		assert!(freq < 10000); // just like in the original test, more than 10Ghz is probably wrong
+	}
+}
