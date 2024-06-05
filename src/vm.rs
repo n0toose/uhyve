@@ -18,7 +18,8 @@ use thiserror::Error;
 
 #[cfg(target_arch = "x86_64")]
 use crate::arch::x86_64::{
-	detect_freq_from_cpuid, detect_freq_from_cpuid_hypervisor_info, get_cpu_frequency_from_os,
+	detect_freq_from_cpuid, detect_freq_from_cpuid_hypervisor_info, detect_freq_from_sysinfo,
+	get_cpu_frequency_from_os,
 };
 #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 use crate::linux::x86_64::kvm_cpu::initialize_kvm;
@@ -44,15 +45,21 @@ pub type LoadKernelResult<T> = Result<T, LoadKernelError>;
 // TODO: move to architecture specific section
 fn detect_cpu_freq() -> u32 {
 	#[cfg(target_arch = "aarch64")]
-	let mhz: u32 = 0;
+	let mhz: u32 = detect_freq_from_sysinfo().unwrap_or_else(|_| {
+		debug!("Failed to detect using sysinfo");
+		0
+	});
 	#[cfg(target_arch = "x86_64")]
 	let mhz = {
-		let cpuid = raw_cpuid::CpuId::new();
-		let mhz: u32 = detect_freq_from_cpuid(&cpuid).unwrap_or_else(|_| {
-			debug!("Failed to detect from cpuid");
-			detect_freq_from_cpuid_hypervisor_info(&cpuid).unwrap_or_else(|_| {
-				debug!("Failed to detect from hypervisor_info");
-				get_cpu_frequency_from_os().unwrap_or(0)
+		let mhz: u32 = detect_freq_from_sysinfo().unwrap_or_else(|_| {
+			debug!("Failed to detect using sysinfo");
+			let cpuid = raw_cpuid::CpuId::new();
+			detect_freq_from_cpuid(&cpuid).unwrap_or_else(|_| {
+				debug!("Failed to detect from cpuid");
+				detect_freq_from_cpuid_hypervisor_info(&cpuid).unwrap_or_else(|_| {
+					debug!("Failed to detect from hypervisor_info");
+					get_cpu_frequency_from_os().unwrap_or(0)
+				})
 			})
 		});
 		debug!("detected a cpu frequency of {} Mhz", mhz);
