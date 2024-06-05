@@ -18,14 +18,13 @@ use thiserror::Error;
 
 #[cfg(target_arch = "x86_64")]
 use crate::arch::x86_64::{
-	detect_freq_from_cpuid, detect_freq_from_cpuid_hypervisor_info, detect_freq_from_sysinfo,
-	get_cpu_frequency_from_os,
+	detect_freq_from_cpuid, detect_freq_from_cpuid_hypervisor_info, get_cpu_frequency_from_os,
 };
 #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 use crate::linux::x86_64::kvm_cpu::initialize_kvm;
 use crate::{
-	arch, consts::*, mem::MmapMemory, os::HypervisorError, params::Params, vcpu::VirtualCPU,
-	virtio::*,
+	arch, arch::detect_freq_from_sysinfo, consts::*, mem::MmapMemory, os::HypervisorError,
+	params::Params, vcpu::VirtualCPU, virtio::*,
 };
 
 pub type HypervisorResult<T> = Result<T, HypervisorError>;
