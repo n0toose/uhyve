@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - '*'
   pull_request:
   merge_group:
 
@@ -25,22 +27,6 @@ jobs:
           cargo test --lib
           cargo test --bins --examples
           cargo test --doc
-
-  integration-tests:
-    name: Integration Tests
-    runs-on: [self-hosted]
-    steps:
-      - name: Install gdb
-        run: |
-          sudo apt-get update
-          sudo apt-get install gdb
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Integration Tests
-        run: cargo test --test '*'
 
   run_images:
     name: Run images
@@ -104,7 +90,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Clippy
         run: cargo clippy --all-targets ${{ matrix.flags }} -- -D warnings
-  
+
   clippy-test-kernel:
     name: Clippy test-kernels
     runs-on: ubuntu-latest
@@ -124,7 +110,7 @@ jobs:
       # TODO: Remove once we have a hermit toolchain upgrade
       # capable of sparse registries
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: git
-      
+
   coverage:
     name: Coverage
     runs-on: [self-hosted]
@@ -139,7 +125,7 @@ jobs:
         run: curl -LsSf https://github.com/taiki-e/cargo-llvm-cov/releases/latest/download/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz | tar xzf - -C ~/.cargo/bin
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }} || startsWith(github.ref, 'refs/tags')
       - name: Generate code coverage
         run: cargo llvm-cov --lcov --output-path lcov.info
       - name: Upload coverage to Codecov
@@ -148,3 +134,30 @@ jobs:
           disable_safe_directory: true
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    name: Build Uhyve
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: Upload binaries
+        # v2.9.0, pinned to the corresponding commit hash for hardening reasons
+        uses: svenstaro/upload-release-action@04733e069f2d7f7f0b4aebc4fbdbce8613b03ccd
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/uhyve*
+          tag: ${{ github.ref }}
+          asset_name: "uhyve-${{ github.ref_name }}-${{ matrix.os }}"
+          draft: true
+          overwrite: true
+          file_glob: true
