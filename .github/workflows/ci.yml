@@ -141,9 +141,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
+        include:
+          - os: ubuntu-latest
+            asset_name: "uhyve-${{ github.ref_name }}-linux-amd64"
+          - os: macos-latest
+            asset_name: uhyve-${{ github.ref_name }}-macos-amd64
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -156,8 +158,9 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/uhyve*
+          asset_name: ${{ matrix.asset_name }}
           tag: ${{ github.ref }}
-          asset_name: "uhyve-${{ github.ref_name }}-${{ matrix.os }}"
+          title: "Uhyve ${{ github.ref_name }}"
           draft: true
           overwrite: true
           file_glob: true
