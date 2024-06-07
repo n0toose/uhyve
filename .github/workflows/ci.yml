@@ -157,7 +157,7 @@ jobs:
         uses: svenstaro/upload-release-action@04733e069f2d7f7f0b4aebc4fbdbce8613b03ccd
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/uhyve*
+          file: target/release/uhyve
           asset_name: ${{ matrix.asset_name }}
           tag: ${{ github.ref }}
           title: "Uhyve ${{ github.ref_name }}"
