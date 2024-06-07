@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - '*'
+      - 'v*'
   pull_request:
   merge_group:
 
@@ -146,24 +146,21 @@ jobs:
             asset_name: "uhyve-${{ github.ref_name }}-linux-amd64"
           - os: macos-latest
             asset_name: uhyve-${{ github.ref_name }}-macos-amd64
-    outputs:
-      upload-url:  ${{ needs.release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --release --locked
-      - name: Make new release
+      - name: Upload binaries to new release
         id: release
         # v2.9.0, pinned to the corresponding commit hash for hardening reasons
         uses: svenstaro/upload-release-action@04733e069f2d7f7f0b4aebc4fbdbce8613b03ccd
         with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/uhyve
           asset_name: ${{ matrix.asset_name }}
           tag: ${{ github.ref }}
-          title: "Uhyve ${{ github.ref_name }}"
+          release_name: "Uhyve ${{ github.ref_name }}"
           draft: true
           overwrite: true
