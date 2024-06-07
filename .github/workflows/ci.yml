@@ -163,4 +163,3 @@ jobs:
           title: "Uhyve ${{ github.ref_name }}"
           draft: true
           overwrite: true
-          file_glob: true
