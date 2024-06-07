@@ -144,8 +144,6 @@ jobs:
         include:
           - os: ubuntu-latest
             asset_name: "uhyve-${{ github.ref_name }}-linux-amd64"
-          - os: macos-latest
-            asset_name: uhyve-${{ github.ref_name }}-macos-amd64
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
