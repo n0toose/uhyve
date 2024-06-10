@@ -35,5 +35,5 @@ jobs:
               cp LICENSE-* $DIST
               
               tar czf $DIST.tar.gz $DIST
-              echo "FILE=$DIST.zip" >> $GITHUB_ENV
+              echo "FILE=$DIST.tar.gz" >> $GITHUB_ENV
           - run: gh release upload ${{ github.ref }} $FILE --clobber
