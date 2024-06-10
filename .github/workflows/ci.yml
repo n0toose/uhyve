@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*.*.*"
   pull_request:
   merge_group:
 
@@ -152,7 +150,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
     name: Create new release
     runs-on: ${{ matrix.os }}
     strategy:

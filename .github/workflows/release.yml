@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+    release:
+        name: Create new release
+        runs-on: ${{ matrix.os }}
+        strategy:
+          matrix:
+            include:
+              - os: ubuntu-latest
+                flags: --target x86_64-unknown-linux-gnu
+                asset_name: "uhyve-${{ github.ref_name }}-linux-amd64"
+                path: "./target/release/uhyve"
+        steps:
+          - uses: actions/checkout@v4
+          - uses: dtolnay/rust-toolchain@stable
+          - run: cargo build --release --locked ${{ matrix.flags }}
+          - run: gh release create ${{ github.ref }} --draft --title "Uhyve ${{ github.ref_name }}"
+          - run: gh release upload ${{ github.ref }} ${{ matrix.path }}#${{ matrix.asset_name }} --clobber
