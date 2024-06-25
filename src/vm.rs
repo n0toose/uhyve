@@ -15,6 +15,7 @@ use hermit_entry::{
 };
 use log::{error, warn};
 use thiserror::Error;
+use x86_64::PhysAddr;
 
 #[cfg(target_arch = "x86_64")]
 use crate::arch::x86_64::{
@@ -23,7 +24,7 @@ use crate::arch::x86_64::{
 #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 use crate::linux::x86_64::kvm_cpu::initialize_kvm;
 use crate::{
-	arch, consts::*, mem::MmapMemory, os::HypervisorError, params::Params, vcpu::VirtualCPU,
+	arch, consts::*, mem::MmapMemory, paging::UhyvePageTable, os::HypervisorError, params::Params, vcpu::VirtualCPU,
 	virtio::*,
 };
 
@@ -76,6 +77,7 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	entry_point: u64,
 	stack_address: u64,
 	pub mem: Arc<MmapMemory>,
+	pub pagetable: UhyvePageTable,
 	num_cpus: u32,
 	path: PathBuf,
 	args: Vec<OsString>,
@@ -91,7 +93,9 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let memory_size = params.memory_size.get();
 
 		#[cfg(target_os = "linux")]
-		let mem = MmapMemory::new(0, memory_size, arch::RAM_START, params.thp, params.ksm);
+		let guest_address = PhysAddr::new(0x20000);
+		let pagetable = UhyvePageTable::new(guest_address);
+		let mem = MmapMemory::new(0, memory_size, guest_address, params.thp, params.ksm);
 		#[cfg(not(target_os = "linux"))]
 		let mem = MmapMemory::new(0, memory_size, arch::RAM_START, false, false);
 
@@ -120,6 +124,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			entry_point: 0,
 			stack_address: 0,
 			mem: mem.into(),
+			pagetable: pagetable.into(),
 			num_cpus: cpu_count,
 			path: kernel_path,
 			args: params.kernel_args,
@@ -168,7 +173,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 	/// Initialize the page tables for the guest
 	fn init_guest_mem(&mut self) {
 		debug!("Initialize guest memory");
-		crate::arch::init_guest_mem(
+		self.pagetable.init_guest_mem(
 			unsafe { self.mem.as_slice_mut() } // slice only lives during this fn call
 				.try_into()
 				.expect("Guest memory is not large enough for pagetables"),
@@ -219,7 +224,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		};
 		unsafe {
 			let raw_boot_info_ptr =
-				self.mem.host_address.add(BOOT_INFO_ADDR.as_u64() as usize) as *mut RawBootInfo;
+				self.mem.host_address.add(self.pagetable.BOOT_INFO_ADDR.as_u64() as usize) as *mut RawBootInfo;
 			*raw_boot_info_ptr = RawBootInfo::from(boot_info);
 			self.boot_info = raw_boot_info_ptr;
 		}

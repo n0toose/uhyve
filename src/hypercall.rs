@@ -7,8 +7,8 @@ use std::{
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
 
 use crate::{
-	consts::BOOT_PML4,
 	mem::{MemoryError, MmapMemory},
+	paging::UhyvePageTable,
 	virt_to_phys,
 };
 
@@ -98,11 +98,12 @@ pub fn close(sysclose: &mut CloseParams) {
 }
 
 /// Handles an read syscall on the host.
-pub fn read(mem: &MmapMemory, sysread: &mut ReadPrams) {
+pub fn read(mem: &MmapMemory, pagetable: &UhyvePageTable, sysread: &mut ReadPrams) {
 	unsafe {
 		let bytes_read = libc::read(
 			sysread.fd,
-			mem.host_address(virt_to_phys(sysread.buf, mem, BOOT_PML4).unwrap())
+			// TODO: What to do with virt_to_phys?
+			mem.host_address(virt_to_phys(sysread.buf, mem, pagetable).unwrap())
 				.unwrap() as *mut libc::c_void,
 			sysread.len,
 		);
@@ -115,14 +116,15 @@ pub fn read(mem: &MmapMemory, sysread: &mut ReadPrams) {
 }
 
 /// Handles an write syscall on the host.
-pub fn write(mem: &MmapMemory, syswrite: &WriteParams) -> io::Result<()> {
+pub fn write(mem: &MmapMemory, pagetable: &UhyvePageTable, syswrite: &WriteParams) -> io::Result<()> {
 	let mut bytes_written: usize = 0;
 	while bytes_written != syswrite.len {
 		unsafe {
 			let step = libc::write(
 				syswrite.fd,
 				mem.host_address(
-					virt_to_phys(syswrite.buf + bytes_written as u64, mem, BOOT_PML4).unwrap(),
+					// TODO: What to do with virt_to_phys?
+					virt_to_phys(syswrite.buf + bytes_written as u64, mem, pagetable).unwrap(),
 				)
 				.map_err(|e| match e {
 					MemoryError::BoundsViolation => {
