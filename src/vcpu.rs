@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use crate::paging::UhyvePageTable;
 /// The trait and fns that a virtual cpu requires
 use crate::{os::DebugExitInfo, HypervisorResult};
-use crate::{paging::UhyvePageTable, vm::UhyveVm};
+use crate::vm::UhyveVm;
 
 /// Reasons for vCPU exits.
 pub enum VcpuStopReason {
@@ -19,8 +20,7 @@ pub enum VcpuStopReason {
 /// Functionality a virtual CPU backend must provide to be used by uhyve
 pub trait VirtualCPU: Sized {
 	/// Create a new CPU object
-	/// TODO: UhyvePageTable being here is kind of trash-y, fix this.
-	fn new(id: u32, vm: Arc<UhyveVm<Self>>) -> HypervisorResult<Self>;
+	fn new(id: u32, address_table: UhyvePageTable, vm: Arc<UhyveVm<Self>>) -> HypervisorResult<Self>;
 
 	/// Continues execution.
 	fn r#continue(&mut self) -> HypervisorResult<VcpuStopReason>;

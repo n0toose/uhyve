@@ -4,6 +4,9 @@ use nix::sys::mman::*;
 use thiserror::Error;
 use uhyve_interface::GuestPhysAddr;
 
+// TODO: Figure out a way to remove this.
+use crate::paging::UhyvePageTable;
+
 #[derive(Error, Debug)]
 pub enum MemoryError {
 	#[error("Memory bounds exceeded")]
@@ -20,6 +23,7 @@ pub struct MmapMemory {
 	pub memory_size: usize,
 	pub guest_address: GuestPhysAddr,
 	pub host_address: *mut u8,
+	pub address_table: UhyvePageTable
 }
 
 impl MmapMemory {
@@ -68,10 +72,13 @@ impl MmapMemory {
 			}
 		}
 
+		let address_table = UhyvePageTable::new(guest_address);
+
 		MmapMemory {
 			flags,
 			memory_size,
 			guest_address,
+			address_table,
 			host_address: host_address.as_ptr() as *mut u8,
 		}
 	}

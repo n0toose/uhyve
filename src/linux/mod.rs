@@ -109,8 +109,9 @@ impl UhyveVm<KvmCpu> {
 						None => debug!("No affinity specified, not binding thread"),
 					}
 
+					// TODO: remove this hack
 					let mut cpu =
-						KvmCpu::new(cpu_id, parent_vm.clone()).unwrap();
+						KvmCpu::new(cpu_id, parent_vm.mem.address_table, parent_vm.clone()).unwrap();
 
 					thread::sleep(std::time::Duration::from_millis(cpu_id as u64 * 50));
 
@@ -167,7 +168,8 @@ impl UhyveVm<KvmCpu> {
 		}
 
 		let this = Arc::new(self);
-		let cpu = KvmCpu::new(cpu_id, this.clone()).unwrap();
+		// TODO: remove this hack
+		let cpu = KvmCpu::new(cpu_id, this.mem.address_table, this.clone()).unwrap();
 
 		let connection = wait_for_gdb_connection(this.gdb_port.unwrap()).unwrap();
 		let debugger = GdbStub::new(connection);

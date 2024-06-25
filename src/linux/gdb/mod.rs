@@ -130,7 +130,7 @@ impl SingleThreadBase for GdbUhyve {
 		// Safety: mem is copied to data before mem can be modified.
 		let src = unsafe {
 			self.vm.mem.slice_at(
-				virt_to_phys(guest_addr, &self.vm.mem, &self.vm.pagetable).map_err(|_err| ())?,
+				virt_to_phys(guest_addr, &self.vm.mem).map_err(|_err| ())?,
 				data.len(),
 			)
 		}
@@ -146,7 +146,6 @@ impl SingleThreadBase for GdbUhyve {
 				virt_to_phys(
 					GuestVirtAddr::new(start_addr),
 					&self.vm.mem,
-					&self.vm.pagetable,
 				)
 				.map_err(|_err| ())?,
 				data.len(),

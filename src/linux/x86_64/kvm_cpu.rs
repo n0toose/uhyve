@@ -120,6 +120,7 @@ pub struct KvmCpu {
 	id: u32,
 	vcpu: VcpuFd,
 	parent_vm: Arc<UhyveVm<Self>>,
+	pagetable: UhyvePageTable,
 	pci_addr: Option<u32>,
 }
 
@@ -335,6 +336,7 @@ impl KvmCpu {
 impl VirtualCPU for KvmCpu {
 	fn new(
 		id: u32,
+		pagetable: UhyvePageTable,
 		parent_vm: Arc<UhyveVm<KvmCpu>>,
 	) -> HypervisorResult<KvmCpu> {
 		let vcpu = KVM_ACCESS
@@ -347,12 +349,14 @@ impl VirtualCPU for KvmCpu {
 			id,
 			vcpu,
 			parent_vm: parent_vm.clone(),
+			pagetable: pagetable,
 			pci_addr: None,
 		};
 		kvcpu.init(
 			parent_vm.get_entry_point(),
 			parent_vm.stack_address(),
-			parent_vm.pagetable,
+			// TODO: remove this hack
+			parent_vm.mem.address_table,
 			id,
 		)?;
 
@@ -444,13 +448,11 @@ impl VirtualCPU for KvmCpu {
 									// TODO: Passing the entire struct on every call seems a bit weird. This should be fixed.
 									hypercall::read(
 										&self.parent_vm.mem,
-										&self.parent_vm.pagetable,
 										sysread,
 									)
 								}
 								Hypercall::FileWrite(syswrite) => hypercall::write(
 									&self.parent_vm.mem,
-									&self.parent_vm.pagetable,
 									syswrite,
 								)
 								.map_err(|_e| HypervisorError::new(libc::EFAULT))?,

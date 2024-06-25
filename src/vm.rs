@@ -77,7 +77,6 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	entry_point: u64,
 	stack_address: u64,
 	pub mem: Arc<MmapMemory>,
-	pub pagetable: UhyvePageTable,
 	num_cpus: u32,
 	path: PathBuf,
 	args: Vec<OsString>,
@@ -94,7 +93,6 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 
 		#[cfg(target_os = "linux")]
 		let guest_address = PhysAddr::new(0x30000);
-		let pagetable = UhyvePageTable::new(guest_address);
 		let mem = MmapMemory::new(0, memory_size, guest_address, params.thp, params.ksm);
 		#[cfg(not(target_os = "linux"))]
 		let mem = MmapMemory::new(0, memory_size, arch::RAM_START, false, false);
@@ -124,7 +122,6 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			entry_point: 0,
 			stack_address: 0,
 			mem: mem.into(),
-			pagetable: pagetable.into(),
 			num_cpus: cpu_count,
 			path: kernel_path,
 			args: params.kernel_args,
@@ -173,7 +170,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 	/// Initialize the page tables for the guest
 	fn init_guest_mem(&mut self) {
 		debug!("Initialize guest memory");
-		self.pagetable.init_guest_mem(
+		self.mem.address_table.init_guest_mem(
 			unsafe { self.mem.as_slice_mut() } // slice only lives during this fn call
 				.try_into()
 				.expect("Guest memory is not large enough for pagetables"),
@@ -226,7 +223,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			let raw_boot_info_ptr =
 				self.mem
 					.host_address
-					.add(self.pagetable.BOOT_INFO_ADDR.as_u64() as usize) as *mut RawBootInfo;
+					.add(self.mem.address_table.BOOT_INFO_ADDR.as_u64() as usize) as *mut RawBootInfo;
 			*raw_boot_info_ptr = RawBootInfo::from(boot_info);
 			self.boot_info = raw_boot_info_ptr;
 		}

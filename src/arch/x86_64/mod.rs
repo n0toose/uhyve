@@ -115,8 +115,7 @@ pub fn get_cpu_frequency_from_os() -> std::result::Result<u32, FrequencyDetectio
 /// Converts a virtual address in the guest to a physical address in the guest
 pub fn virt_to_phys(
 	addr: GuestVirtAddr,
-	mem: &MmapMemory,
-	pagetable: &UhyvePageTable,
+	mem: &MmapMemory
 ) -> Result<GuestPhysAddr, PagetableError> {
 	/// Number of Offset bits of a virtual address for a 4 KiB page, which are shifted away to get its Page Frame Number (PFN).
 	pub const PAGE_BITS: u64 = 12;
@@ -125,7 +124,8 @@ pub fn virt_to_phys(
 	pub const PAGE_MAP_BITS: usize = 9;
 
 	let mut page_table =
-		unsafe { (mem.host_address(pagetable.BOOT_PML4).unwrap() as *mut PageTable).as_mut() }
+		// TODO: Too cursed?
+		unsafe { (mem.host_address(mem.address_table.BOOT_PML4).unwrap() as *mut PageTable).as_mut() }
 			.unwrap();
 	let mut page_bits = 39;
 	let mut entry = PageTableEntry::new();
@@ -296,7 +296,7 @@ use super::*;
 
 	#[test]
 	fn test_virt_to_phys() {
-		let guest_address = GuestPhysAddr::new(0x300000);
+		let guest_address = GuestPhysAddr::new(0x11111000);
 		let pagetable = UhyvePageTable::new(guest_address);
 		let mem = MmapMemory::new(
 			0,
@@ -309,12 +309,12 @@ use super::*;
 
 		// Get the address of the first entry in PML4 (the address of the PML4 itself)
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFFFFFF000);
-		let p_addr = virt_to_phys(virt_addr, &mem, &pagetable).unwrap();
+		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
 		assert_eq!(p_addr, pagetable.BOOT_PML4);
 
 		// The last entry on the PML4 is the address of the PML4 with flags
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFFFFFF000 | (4096 - 8));
-		let p_addr = virt_to_phys(virt_addr, &mem, &pagetable).unwrap();
+		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
 		assert_eq!(
 			mem.read::<u64>(p_addr).unwrap(),
 			// TODO: Clean this up.
@@ -324,12 +324,12 @@ use super::*;
 
 		// the first entry on the 3rd level entry in the pagetables is the address of the boot pdpte
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFFFE00000);
-		let p_addr = virt_to_phys(virt_addr, &mem, &pagetable).unwrap();
+		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
 		assert_eq!(p_addr, pagetable.BOOT_PDPTE);
 
 		// the first entry on the 2rd level entry in the pagetables is the address of the boot pde
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFC0000000);
-		let p_addr = virt_to_phys(virt_addr, &mem, &pagetable).unwrap();
+		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
 		assert_eq!(p_addr, pagetable.BOOT_PDE);
 		// That address points to a huge page
 		assert!(
