@@ -155,7 +155,9 @@ pub fn virt_to_phys(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::consts::{GDT_OFFSET, PDE_OFFSET, PDPTE_OFFSET, PML4_OFFSET};
+
+use super::*;
 	// test is derived from
 	// https://github.com/gz/rust-cpuid/blob/master/examples/tsc_frequency.rs
 	#[test]
@@ -237,7 +239,8 @@ mod tests {
 
 	#[test]
 	fn test_pagetable_initialization() {
-		let pagetable = UhyvePageTable::new(GuestPhysAddr::new(0x4000));
+		let addr = 0x1000;
+		let pagetable = UhyvePageTable::new(GuestPhysAddr::new(addr));
 		let min_physmem = pagetable.get_min_physmem_size();
 
 		let mut mem: Vec<u8> = vec![0; min_physmem];
@@ -245,25 +248,25 @@ mod tests {
 
 		// Test pagetable setup
 		let addr_pdpte = u64::from_le_bytes(
-			mem[(pagetable.BOOT_PML4.as_u64() as usize)
-				..(pagetable.BOOT_PML4.as_u64() as usize + 8)]
+			mem[(PML4_OFFSET as usize)
+				..(PML4_OFFSET as usize + 8)]
 				.try_into()
 				.unwrap(),
 		);
 		assert_eq!(
-			addr_pdpte,
-			pagetable.BOOT_PDPTE.as_u64()
+			addr_pdpte - addr,
+			PDPTE_OFFSET
 				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);
 		let addr_pde = u64::from_le_bytes(
-			mem[(pagetable.BOOT_PDPTE.as_u64() as usize)
-				..(pagetable.BOOT_PDPTE.as_u64() as usize + 8)]
+			mem[(PDPTE_OFFSET as usize)
+				..(PDPTE_OFFSET as usize + 8)]
 				.try_into()
 				.unwrap(),
 		);
 		assert_eq!(
-			addr_pde,
-			pagetable.BOOT_PDE.as_u64()
+			addr_pde - addr,
+			PDE_OFFSET
 				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);
 
@@ -282,10 +285,11 @@ mod tests {
 		}
 
 		// Test GDT
+		// TODO: Fix test
 		let gdt_results = [0x0, 0xAF9B000000FFFF, 0xCF93000000FFFF];
 		for (i, res) in gdt_results.iter().enumerate() {
-			let gdt_addr = pagetable.BOOT_GDT.as_u64() as usize + i * 8;
-			let gdt_entry = u64::from_le_bytes(mem[gdt_addr..gdt_addr + 8].try_into().unwrap());
+			let gdt_addr = (addr + GDT_OFFSET) as usize + i * 8;
+			let gdt_entry = u64::from_le_bytes(mem[GDT_OFFSET as usize..GDT_OFFSET as usize + 8].try_into().unwrap());
 			assert_eq!(*res, gdt_entry);
 		}
 	}
