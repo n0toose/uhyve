@@ -110,7 +110,7 @@ impl UhyveVm<KvmCpu> {
 					}
 
 					let mut cpu =
-						KvmCpu::new(cpu_id, parent_vm.pagetable, parent_vm.clone()).unwrap();
+						KvmCpu::new(cpu_id, parent_vm.clone()).unwrap();
 
 					thread::sleep(std::time::Duration::from_millis(cpu_id as u64 * 50));
 
@@ -167,8 +167,7 @@ impl UhyveVm<KvmCpu> {
 		}
 
 		let this = Arc::new(self);
-		// TODO: Does using the Copy trait make sense?
-		let cpu = KvmCpu::new(cpu_id, this.pagetable, this.clone()).unwrap();
+		let cpu = KvmCpu::new(cpu_id, this.clone()).unwrap();
 
 		let connection = wait_for_gdb_connection(this.gdb_port.unwrap()).unwrap();
 		let debugger = GdbStub::new(connection);

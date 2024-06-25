@@ -20,7 +20,7 @@ pub enum VcpuStopReason {
 pub trait VirtualCPU: Sized {
 	/// Create a new CPU object
 	/// TODO: UhyvePageTable being here is kind of trash-y, fix this.
-	fn new(id: u32, pagetable: UhyvePageTable, vm: Arc<UhyveVm<Self>>) -> HypervisorResult<Self>;
+	fn new(id: u32, vm: Arc<UhyveVm<Self>>) -> HypervisorResult<Self>;
 
 	/// Continues execution.
 	fn r#continue(&mut self) -> HypervisorResult<VcpuStopReason>;

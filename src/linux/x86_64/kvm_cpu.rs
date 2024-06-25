@@ -120,7 +120,6 @@ pub struct KvmCpu {
 	id: u32,
 	vcpu: VcpuFd,
 	parent_vm: Arc<UhyveVm<Self>>,
-	pagetable: UhyvePageTable,
 	pci_addr: Option<u32>,
 }
 
@@ -336,7 +335,6 @@ impl KvmCpu {
 impl VirtualCPU for KvmCpu {
 	fn new(
 		id: u32,
-		pagetable: UhyvePageTable,
 		parent_vm: Arc<UhyveVm<KvmCpu>>,
 	) -> HypervisorResult<KvmCpu> {
 		let vcpu = KVM_ACCESS
@@ -349,7 +347,6 @@ impl VirtualCPU for KvmCpu {
 			id,
 			vcpu,
 			parent_vm: parent_vm.clone(),
-			pagetable: pagetable,
 			pci_addr: None,
 		};
 		kvcpu.init(
