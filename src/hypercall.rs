@@ -116,7 +116,11 @@ pub fn read(mem: &MmapMemory, pagetable: &UhyvePageTable, sysread: &mut ReadPram
 }
 
 /// Handles an write syscall on the host.
-pub fn write(mem: &MmapMemory, pagetable: &UhyvePageTable, syswrite: &WriteParams) -> io::Result<()> {
+pub fn write(
+	mem: &MmapMemory,
+	pagetable: &UhyvePageTable,
+	syswrite: &WriteParams,
+) -> io::Result<()> {
 	let mut bytes_written: usize = 0;
 	while bytes_written != syswrite.len {
 		unsafe {

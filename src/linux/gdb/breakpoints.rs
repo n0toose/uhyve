@@ -4,9 +4,7 @@ use gdbstub::target::{self, ext::breakpoints::WatchKind, TargetResult};
 use uhyve_interface::GuestVirtAddr;
 
 use super::GdbUhyve;
-use crate::{
-	arch::x86_64::{registers, virt_to_phys}
-};
+use crate::arch::x86_64::{registers, virt_to_phys};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SwBreakpoint {
 	addr: u64,

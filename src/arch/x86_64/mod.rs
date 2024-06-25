@@ -19,7 +19,7 @@ use x86_64::{
 };
 
 // TODO: Make this less trash.
-use crate::{ mem::MmapMemory, paging::UhyvePageTable, paging::PagetableError};
+use crate::{mem::MmapMemory, paging::PagetableError, paging::UhyvePageTable};
 
 pub const RAM_START: GuestPhysAddr = GuestPhysAddr::new(0x00);
 const MHZ_TO_HZ: u64 = 1000000;
@@ -125,7 +125,8 @@ pub fn virt_to_phys(
 	pub const PAGE_MAP_BITS: usize = 9;
 
 	let mut page_table =
-		unsafe { (mem.host_address(pagetable.BOOT_PML4).unwrap() as *mut PageTable).as_mut() }.unwrap();
+		unsafe { (mem.host_address(pagetable.BOOT_PML4).unwrap() as *mut PageTable).as_mut() }
+			.unwrap();
 	let mut page_bits = 39;
 	let mut entry = PageTableEntry::new();
 
@@ -244,22 +245,26 @@ mod tests {
 
 		// Test pagetable setup
 		let addr_pdpte = u64::from_le_bytes(
-			mem[(pagetable.BOOT_PML4.as_u64() as usize)..(pagetable.BOOT_PML4.as_u64() as usize + 8)]
+			mem[(pagetable.BOOT_PML4.as_u64() as usize)
+				..(pagetable.BOOT_PML4.as_u64() as usize + 8)]
 				.try_into()
 				.unwrap(),
 		);
 		assert_eq!(
 			addr_pdpte,
-			pagetable.BOOT_PDPTE.as_u64() | (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
+			pagetable.BOOT_PDPTE.as_u64()
+				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);
 		let addr_pde = u64::from_le_bytes(
-			mem[(pagetable.BOOT_PDPTE.as_u64() as usize)..(pagetable.BOOT_PDPTE.as_u64() as usize + 8)]
+			mem[(pagetable.BOOT_PDPTE.as_u64() as usize)
+				..(pagetable.BOOT_PDPTE.as_u64() as usize + 8)]
 				.try_into()
 				.unwrap(),
 		);
 		assert_eq!(
 			addr_pde,
-			pagetable.BOOT_PDE.as_u64() | (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
+			pagetable.BOOT_PDE.as_u64()
+				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);
 
 		for i in (0..4096).step_by(8) {
@@ -269,8 +274,7 @@ mod tests {
 				PageTableFlags::from_bits_truncate(entry)
 					.difference(
 						PageTableFlags::PRESENT
-							| PageTableFlags::WRITABLE
-							| PageTableFlags::HUGE_PAGE
+							| PageTableFlags::WRITABLE | PageTableFlags::HUGE_PAGE
 					)
 					.is_empty(),
 				"Pagetable bits at {addr:#x} are incorrect"
@@ -290,7 +294,13 @@ mod tests {
 	fn test_virt_to_phys() {
 		let guest_address = GuestPhysAddr::new(0x20000);
 		let pagetable = UhyvePageTable::new(guest_address);
-		let mem = MmapMemory::new(0, pagetable.get_min_physmem_size() * 2, guest_address, true, true);
+		let mem = MmapMemory::new(
+			0,
+			pagetable.get_min_physmem_size() * 2,
+			guest_address,
+			true,
+			true,
+		);
 		pagetable.initialize_pagetables(unsafe { mem.as_slice_mut() }.try_into().unwrap());
 
 		// Get the address of the first entry in PML4 (the address of the PML4 itself)
@@ -304,7 +314,8 @@ mod tests {
 		assert_eq!(
 			mem.read::<u64>(p_addr).unwrap(),
 			// TODO: Clean this up.
-			pagetable.BOOT_PML4.as_u64() | (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
+			pagetable.BOOT_PML4.as_u64()
+				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);
 
 		// the first entry on the 3rd level entry in the pagetables is the address of the boot pdpte

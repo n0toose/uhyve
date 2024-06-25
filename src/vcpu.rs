@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use crate::paging::UhyvePageTable;
-use crate::vm::UhyveVm;
 /// The trait and fns that a virtual cpu requires
 use crate::{os::DebugExitInfo, HypervisorResult};
+use crate::{paging::UhyvePageTable, vm::UhyveVm};
 
 /// Reasons for vCPU exits.
 pub enum VcpuStopReason {

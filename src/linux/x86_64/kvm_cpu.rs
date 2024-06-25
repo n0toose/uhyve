@@ -11,12 +11,13 @@ use crate::{
 	hypercall,
 	linux::KVM,
 	mem::MmapMemory,
+	// TODO: Clean this up.
+	paging::UhyvePageTable,
 	vcpu::{VcpuStopReason, VirtualCPU},
 	virtio::*,
 	vm::UhyveVm,
-	// TODO: Clean this up.
-	paging::UhyvePageTable,
-	HypervisorError, HypervisorResult,
+	HypervisorError,
+	HypervisorResult,
 };
 
 const CPUID_EXT_HYPERVISOR: u32 = 1 << 31;
@@ -310,7 +311,13 @@ impl KvmCpu {
 	}
 
 	// TODO: Clean this up.
-	fn init(&mut self, entry_point: u64, stack_address: u64, pagetable: UhyvePageTable, cpu_id: u32) -> HypervisorResult<()> {
+	fn init(
+		&mut self,
+		entry_point: u64,
+		stack_address: u64,
+		pagetable: UhyvePageTable,
+		cpu_id: u32,
+	) -> HypervisorResult<()> {
 		self.setup_long_mode(entry_point, stack_address, pagetable, cpu_id)?;
 		self.setup_cpuid()?;
 
@@ -327,7 +334,11 @@ impl KvmCpu {
 }
 
 impl VirtualCPU for KvmCpu {
-	fn new(id: u32, pagetable: UhyvePageTable, parent_vm: Arc<UhyveVm<KvmCpu>>) -> HypervisorResult<KvmCpu> {
+	fn new(
+		id: u32,
+		pagetable: UhyvePageTable,
+		parent_vm: Arc<UhyveVm<KvmCpu>>,
+	) -> HypervisorResult<KvmCpu> {
 		let vcpu = KVM_ACCESS
 			.lock()
 			.unwrap()
@@ -341,7 +352,12 @@ impl VirtualCPU for KvmCpu {
 			pagetable: pagetable,
 			pci_addr: None,
 		};
-		kvcpu.init(parent_vm.get_entry_point(), parent_vm.stack_address(), parent_vm.pagetable, id)?;
+		kvcpu.init(
+			parent_vm.get_entry_point(),
+			parent_vm.stack_address(),
+			parent_vm.pagetable,
+			id,
+		)?;
 
 		Ok(kvcpu)
 	}
@@ -429,12 +445,18 @@ impl VirtualCPU for KvmCpu {
 								}
 								Hypercall::FileRead(sysread) => {
 									// TODO: Passing the entire struct on every call seems a bit weird. This should be fixed.
-									hypercall::read(&self.parent_vm.mem, &self.parent_vm.pagetable, sysread)
+									hypercall::read(
+										&self.parent_vm.mem,
+										&self.parent_vm.pagetable,
+										sysread,
+									)
 								}
-								Hypercall::FileWrite(syswrite) => {
-									hypercall::write(&self.parent_vm.mem, &self.parent_vm.pagetable, syswrite)
-										.map_err(|_e| HypervisorError::new(libc::EFAULT))?
-								}
+								Hypercall::FileWrite(syswrite) => hypercall::write(
+									&self.parent_vm.mem,
+									&self.parent_vm.pagetable,
+									syswrite,
+								)
+								.map_err(|_e| HypervisorError::new(libc::EFAULT))?,
 								Hypercall::FileUnlink(sysunlink) => {
 									hypercall::unlink(&self.parent_vm.mem, sysunlink)
 								}

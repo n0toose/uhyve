@@ -24,8 +24,8 @@ use crate::arch::x86_64::{
 #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 use crate::linux::x86_64::kvm_cpu::initialize_kvm;
 use crate::{
-	arch, consts::*, mem::MmapMemory, paging::UhyvePageTable, os::HypervisorError, params::Params, vcpu::VirtualCPU,
-	virtio::*,
+	arch, consts::*, mem::MmapMemory, os::HypervisorError, paging::UhyvePageTable, params::Params,
+	vcpu::VirtualCPU, virtio::*,
 };
 
 pub type HypervisorResult<T> = Result<T, HypervisorError>;
@@ -224,7 +224,9 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		};
 		unsafe {
 			let raw_boot_info_ptr =
-				self.mem.host_address.add(self.pagetable.BOOT_INFO_ADDR.as_u64() as usize) as *mut RawBootInfo;
+				self.mem
+					.host_address
+					.add(self.pagetable.BOOT_INFO_ADDR.as_u64() as usize) as *mut RawBootInfo;
 			*raw_boot_info_ptr = RawBootInfo::from(boot_info);
 			self.boot_info = raw_boot_info_ptr;
 		}

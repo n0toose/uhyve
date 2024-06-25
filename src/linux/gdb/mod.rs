@@ -143,8 +143,12 @@ impl SingleThreadBase for GdbUhyve {
 		// Safety: self.vm.mem is not altered during the lifetime of mem.
 		let mem = unsafe {
 			self.vm.mem.slice_at_mut(
-				virt_to_phys(GuestVirtAddr::new(start_addr), &self.vm.mem, &self.vm.pagetable)
-					.map_err(|_err| ())?,
+				virt_to_phys(
+					GuestVirtAddr::new(start_addr),
+					&self.vm.mem,
+					&self.vm.pagetable,
+				)
+				.map_err(|_err| ())?,
 				data.len(),
 			)
 		}

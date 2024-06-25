@@ -1,19 +1,13 @@
 //! General paging related code
 use thiserror::Error;
-
 use uhyve_interface::GuestPhysAddr;
-
 // TODO: Clean this up.
-
 use x86_64::{
-	structures::paging::{
-		Page, PageTable, PageTableFlags, Size2MiB,
-	},
+	structures::paging::{Page, PageTable, PageTableFlags, Size2MiB},
 	PhysAddr,
 };
 
-
-use crate::consts::{*};
+use crate::consts::*;
 
 #[derive(Error, Debug)]
 pub enum PagetableError {
@@ -28,15 +22,13 @@ pub struct UhyvePageTable {
 	pub BOOT_PGT: GuestPhysAddr,
 	pub BOOT_PDPTE: GuestPhysAddr,
 	pub BOOT_PDE: GuestPhysAddr,
-	pub BOOT_INFO_ADDR: GuestPhysAddr
+	pub BOOT_INFO_ADDR: GuestPhysAddr,
 }
 
 // TODO: Get this x86_64 code out of here, only here for convenience.
 // TODO: Check if the values of an object are set or not.
 impl UhyvePageTable {
-	pub fn new(
-		guest_address: GuestPhysAddr,
-	) -> UhyvePageTable {
+	pub fn new(guest_address: GuestPhysAddr) -> UhyvePageTable {
 		let memory_start = guest_address.as_u64();
 		let BOOT_GDT = GuestPhysAddr::new(memory_start + GDT_OFFSET);
 		let BOOT_PML4 = GuestPhysAddr::new(memory_start + PML4_OFFSET);
@@ -51,7 +43,7 @@ impl UhyvePageTable {
 			BOOT_PGT,
 			BOOT_PDPTE,
 			BOOT_PDE,
-			BOOT_INFO_ADDR
+			BOOT_INFO_ADDR,
 		}
 	}
 
@@ -114,7 +106,10 @@ impl UhyvePageTable {
 			self.BOOT_PML4,
 			PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
 		);
-		pdpte[0].set_addr(self.BOOT_PDE, PageTableFlags::PRESENT | PageTableFlags::WRITABLE);
+		pdpte[0].set_addr(
+			self.BOOT_PDE,
+			PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+		);
 
 		for i in 0..512 {
 			let addr = PhysAddr::new(i as u64 * Page::<Size2MiB>::SIZE);

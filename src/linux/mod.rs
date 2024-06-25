@@ -109,7 +109,8 @@ impl UhyveVm<KvmCpu> {
 						None => debug!("No affinity specified, not binding thread"),
 					}
 
-					let mut cpu = KvmCpu::new(cpu_id, parent_vm.pagetable, parent_vm.clone()).unwrap();
+					let mut cpu =
+						KvmCpu::new(cpu_id, parent_vm.pagetable, parent_vm.clone()).unwrap();
 
 					thread::sleep(std::time::Duration::from_millis(cpu_id as u64 * 50));
 
