@@ -93,7 +93,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let memory_size = params.memory_size.get();
 
 		#[cfg(target_os = "linux")]
-		let guest_address = PhysAddr::new(0x20000);
+		let guest_address = PhysAddr::new(0x30000);
 		let pagetable = UhyvePageTable::new(guest_address);
 		let mem = MmapMemory::new(0, memory_size, guest_address, params.thp, params.ksm);
 		#[cfg(not(target_os = "linux"))]

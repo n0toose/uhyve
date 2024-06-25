@@ -63,23 +63,23 @@ impl UhyvePageTable {
 		// these and it is asserted to be large enough.
 		unsafe {
 			gdt_entry = mem_addr
-				.add(self.BOOT_GDT.as_u64() as usize)
+				.add(GDT_OFFSET as usize)
 				.cast::<[u64; 3]>()
 				.as_mut()
 				.unwrap();
 
 			pml4 = mem_addr
-				.add(self.BOOT_PML4.as_u64() as usize)
+				.add(PML4_OFFSET as usize)
 				.cast::<PageTable>()
 				.as_mut()
 				.unwrap();
 			pdpte = mem_addr
-				.add(self.BOOT_PDPTE.as_u64() as usize)
+				.add(PDPTE_OFFSET as usize)
 				.cast::<PageTable>()
 				.as_mut()
 				.unwrap();
 			pde = mem_addr
-				.add(self.BOOT_PDE.as_u64() as usize)
+				.add(PDE_OFFSET as usize)
 				.cast::<PageTable>()
 				.as_mut()
 				.unwrap();

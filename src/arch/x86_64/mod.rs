@@ -237,7 +237,7 @@ mod tests {
 
 	#[test]
 	fn test_pagetable_initialization() {
-		let pagetable = UhyvePageTable::new(GuestPhysAddr::new(0));
+		let pagetable = UhyvePageTable::new(GuestPhysAddr::new(0x4000));
 		let min_physmem = pagetable.get_min_physmem_size();
 
 		let mut mem: Vec<u8> = vec![0; min_physmem];
@@ -292,7 +292,7 @@ mod tests {
 
 	#[test]
 	fn test_virt_to_phys() {
-		let guest_address = GuestPhysAddr::new(0x20000);
+		let guest_address = GuestPhysAddr::new(0x300000);
 		let pagetable = UhyvePageTable::new(guest_address);
 		let mem = MmapMemory::new(
 			0,
