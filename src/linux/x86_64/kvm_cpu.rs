@@ -418,6 +418,12 @@ impl VirtualCPU for KvmCpu {
 							warn!("guest read from unknown I/O port {port:#x}");
 						}
 					},
+					VcpuExit::MmioRead(port, addr) => {
+						debug!("MmioRead: {:?}", VcpuExit::MmioRead(port, addr));
+					}
+					VcpuExit::MmioWrite(port, addr) => {
+						debug!("MmioWrite: {:?}", VcpuExit::MmioWrite(port, addr));
+					}
 					VcpuExit::IoOut(port, addr) => {
 						let data_addr =
 							GuestPhysAddr::new(unsafe { (*(addr.as_ptr() as *const u32)) as u64 });
