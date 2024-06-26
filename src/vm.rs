@@ -92,6 +92,8 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let memory_size = params.memory_size.get();
 
 		#[cfg(target_os = "linux")]
+		// TODO: Try 0x10000, 0x16000, 0x20000, 0x30000, 0x40000, 0x80000 using RUST_LOG=debug.
+		// The MmioRead/MmioWrite behavior is entirely different.
 		let guest_address = PhysAddr::new(0x30000);
 		let mem = MmapMemory::new(0, memory_size, guest_address, params.thp, params.ksm);
 		#[cfg(not(target_os = "linux"))]
