@@ -225,7 +225,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			let raw_boot_info_ptr =
 				self.mem
 					.host_address
-					.add(self.mem.address_table.BOOT_INFO_ADDR.as_u64() as usize) as *mut RawBootInfo;
+					.add(INFO_ADDR_OFFSET as usize) as *mut RawBootInfo;
 			*raw_boot_info_ptr = RawBootInfo::from(boot_info);
 			self.boot_info = raw_boot_info_ptr;
 		}
