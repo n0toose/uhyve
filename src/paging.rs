@@ -35,7 +35,7 @@ impl UhyvePageTable {
 		let BOOT_PGT = GuestPhysAddr::new(memory_start + PGT_OFFSET);
 		let BOOT_PDPTE = GuestPhysAddr::new(memory_start + PDPTE_OFFSET);
 		let BOOT_PDE = GuestPhysAddr::new(memory_start + PDE_OFFSET);
-		let BOOT_INFO_ADDR = GuestPhysAddr::new(INFO_ADDR_OFFSET);
+		let BOOT_INFO_ADDR = GuestPhysAddr::new(memory_start + INFO_ADDR_OFFSET);
 
 		UhyvePageTable {
 			BOOT_GDT,

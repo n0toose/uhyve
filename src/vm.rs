@@ -183,8 +183,13 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let elf = fs::read(self.kernel_path())?;
 		let object = KernelObject::parse(&elf).map_err(LoadKernelError::ParseKernelError)?;
 
+		// The offset of the kernel in the Memory. Must be larger than BOOT_INFO_OFFSET + KERNEL_STACK_SIZE
+		let kernel_offset = 0x20_000_usize;
 		// TODO: should be a random start address, if we have a relocatable executable
-		let kernel_start_address = object.start_addr().unwrap_or(0x400000) as usize;
+		let kernel_start_address = object
+			.start_addr()
+			.unwrap_or(self.mem.guest_address.as_u64() + kernel_offset as u64)
+			as usize;
 		let kernel_end_address = kernel_start_address + object.mem_size();
 		self.offset = kernel_start_address as u64;
 
@@ -198,7 +203,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		} = object.load_kernel(
 			// Safety: Slice only lives during this fn call, so no aliasing happens
 			&mut unsafe { self.mem.as_slice_uninit_mut() }
-				[kernel_start_address..kernel_end_address],
+				[kernel_offset..object.mem_size() + kernel_offset],
 			kernel_start_address as u64,
 		);
 		self.entry_point = entry_point;
@@ -223,9 +228,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		};
 		unsafe {
 			let raw_boot_info_ptr =
-				self.mem
-					.host_address
-					.add(INFO_ADDR_OFFSET as usize) as *mut RawBootInfo;
+				self.mem.host_address.add(INFO_ADDR_OFFSET as usize) as *mut RawBootInfo;
 			*raw_boot_info_ptr = RawBootInfo::from(boot_info);
 			self.boot_info = raw_boot_info_ptr;
 		}
