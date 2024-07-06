@@ -93,7 +93,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let memory_size = params.memory_size.get();
 
 		#[cfg(target_os = "linux")]
-		let guest_address = 0x50000;
+		let guest_address = 0;
 		let mem = MmapMemory::new(
 			0,
 			memory_size,
