@@ -1,3 +1,4 @@
+pub mod paging;
 pub mod registers;
 
 use core::arch::x86_64::_rdtsc as rdtsc;
@@ -10,16 +11,13 @@ use log::{debug, warn};
 use raw_cpuid::{CpuId, CpuIdReaderNative};
 use thiserror::Error;
 use uhyve_interface::{GuestPhysAddr, GuestVirtAddr};
-use x86_64::{
-	structures::paging::{
-		page_table::{FrameError, PageTableEntry},
-		Page, PageTable, PageTableFlags, PageTableIndex, Size2MiB,
-	},
-	PhysAddr,
+use x86_64::structures::paging::{
+	page_table::{FrameError, PageTableEntry},
+	PageTable, PageTableIndex,
 };
 
 // TODO: Make this less trash.
-use crate::{mem::MmapMemory, paging::PagetableError, paging::UhyvePageTable};
+use crate::{consts::PML4_OFFSET, mem::MmapMemory, paging::PagetableError};
 
 pub const RAM_START: GuestPhysAddr = GuestPhysAddr::new(0x00);
 const MHZ_TO_HZ: u64 = 1000000;
@@ -115,7 +113,7 @@ pub fn get_cpu_frequency_from_os() -> std::result::Result<u32, FrequencyDetectio
 /// Converts a virtual address in the guest to a physical address in the guest
 pub fn virt_to_phys(
 	addr: GuestVirtAddr,
-	mem: &MmapMemory
+	mem: &MmapMemory,
 ) -> Result<GuestPhysAddr, PagetableError> {
 	/// Number of Offset bits of a virtual address for a 4 KiB page, which are shifted away to get its Page Frame Number (PFN).
 	pub const PAGE_BITS: u64 = 12;
@@ -125,7 +123,7 @@ pub fn virt_to_phys(
 
 	let mut page_table =
 		// TODO: Too cursed?
-		unsafe { (mem.host_address(mem.address_table.BOOT_PML4).unwrap() as *mut PageTable).as_mut() }
+		unsafe { (mem.host_address(GuestPhysAddr::new(mem.guest_address.as_u64() + PML4_OFFSET)).unwrap() as *mut PageTable).as_mut() }
 			.unwrap();
 	let mut page_bits = 39;
 	let mut entry = PageTableEntry::new();
@@ -155,9 +153,14 @@ pub fn virt_to_phys(
 
 #[cfg(test)]
 mod tests {
-	use crate::consts::{GDT_OFFSET, PDE_OFFSET, PDPTE_OFFSET, PML4_OFFSET};
+	use x86_64::{structures::paging::PageTableFlags, PhysAddr};
 
-use super::*;
+	use super::*;
+	use crate::{
+		consts::{PDE_OFFSET, PDPTE_OFFSET, PML4_OFFSET},
+		x86_64::paging::initialize_pagetables,
+	};
+
 	// test is derived from
 	// https://github.com/gz/rust-cpuid/blob/master/examples/tsc_frequency.rs
 	#[test]
@@ -238,79 +241,19 @@ use super::*;
 	}
 
 	#[test]
-	fn test_pagetable_initialization() {
-		let addr = 0x1000;
-		let pagetable = UhyvePageTable::new(GuestPhysAddr::new(addr));
-		let min_physmem = pagetable.get_min_physmem_size();
-
-		let mut mem: Vec<u8> = vec![0; min_physmem];
-		pagetable.initialize_pagetables((&mut mem[0..min_physmem]).try_into().unwrap());
-
-		// Test pagetable setup
-		let addr_pdpte = u64::from_le_bytes(
-			mem[(PML4_OFFSET as usize)
-				..(PML4_OFFSET as usize + 8)]
-				.try_into()
-				.unwrap(),
-		);
-		assert_eq!(
-			addr_pdpte - addr,
-			PDPTE_OFFSET
-				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
-		);
-		let addr_pde = u64::from_le_bytes(
-			mem[(PDPTE_OFFSET as usize)
-				..(PDPTE_OFFSET as usize + 8)]
-				.try_into()
-				.unwrap(),
-		);
-		assert_eq!(
-			addr_pde - addr,
-			PDE_OFFSET
-				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
-		);
-
-		for i in (0..4096).step_by(8) {
-			let addr = pagetable.BOOT_PDE.as_u64() as usize + i;
-			let entry = u64::from_le_bytes(mem[addr..(addr + 8)].try_into().unwrap());
-			assert!(
-				PageTableFlags::from_bits_truncate(entry)
-					.difference(
-						PageTableFlags::PRESENT
-							| PageTableFlags::WRITABLE | PageTableFlags::HUGE_PAGE
-					)
-					.is_empty(),
-				"Pagetable bits at {addr:#x} are incorrect"
-			)
-		}
-
-		// Test GDT
-		// TODO: Fix test
-		let gdt_results = [0x0, 0xAF9B000000FFFF, 0xCF93000000FFFF];
-		for (i, res) in gdt_results.iter().enumerate() {
-			let gdt_addr = (addr + GDT_OFFSET) as usize + i * 8;
-			let gdt_entry = u64::from_le_bytes(mem[GDT_OFFSET as usize..GDT_OFFSET as usize + 8].try_into().unwrap());
-			assert_eq!(*res, gdt_entry);
-		}
-	}
-
-	#[test]
 	fn test_virt_to_phys() {
-		let guest_address = GuestPhysAddr::new(0x11111000);
-		let pagetable = UhyvePageTable::new(guest_address);
-		let mem = MmapMemory::new(
-			0,
-			pagetable.get_min_physmem_size() * 2,
+		let guest_address = 0x11111000;
+		// TODO: Stop using the hardcoded MIN_PHYSMEM_SIZE.
+		let mem = MmapMemory::new(0, 0x13000 * 2, PhysAddr::new(guest_address), true, true);
+		initialize_pagetables(
+			unsafe { mem.as_slice_mut() }.try_into().unwrap(),
 			guest_address,
-			true,
-			true,
 		);
-		pagetable.initialize_pagetables(unsafe { mem.as_slice_mut() }.try_into().unwrap());
 
 		// Get the address of the first entry in PML4 (the address of the PML4 itself)
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFFFFFF000);
 		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
-		assert_eq!(p_addr, pagetable.BOOT_PML4);
+		assert_eq!(p_addr, GuestPhysAddr::new(guest_address + PML4_OFFSET));
 
 		// The last entry on the PML4 is the address of the PML4 with flags
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFFFFFF000 | (4096 - 8));
@@ -318,19 +261,19 @@ use super::*;
 		assert_eq!(
 			mem.read::<u64>(p_addr).unwrap(),
 			// TODO: Clean this up.
-			pagetable.BOOT_PML4.as_u64()
+			(guest_address + PML4_OFFSET)
 				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);
 
 		// the first entry on the 3rd level entry in the pagetables is the address of the boot pdpte
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFFFE00000);
 		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
-		assert_eq!(p_addr, pagetable.BOOT_PDPTE);
+		assert_eq!(p_addr, PhysAddr::new(guest_address + PDPTE_OFFSET));
 
 		// the first entry on the 2rd level entry in the pagetables is the address of the boot pde
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFC0000000);
 		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
-		assert_eq!(p_addr, pagetable.BOOT_PDE);
+		assert_eq!(p_addr, PhysAddr::new(guest_address + PDE_OFFSET));
 		// That address points to a huge page
 		assert!(
 			PageTableFlags::from_bits_truncate(mem.read::<u64>(p_addr).unwrap()).contains(

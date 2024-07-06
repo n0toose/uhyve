@@ -12,7 +12,6 @@ use crate::{
 	linux::KVM,
 	mem::MmapMemory,
 	// TODO: Clean this up.
-	paging::UhyvePageTable,
 	vcpu::{VcpuStopReason, VirtualCPU},
 	virtio::*,
 	vm::UhyveVm,
@@ -120,7 +119,6 @@ pub struct KvmCpu {
 	id: u32,
 	vcpu: VcpuFd,
 	parent_vm: Arc<UhyveVm<Self>>,
-	pagetable: UhyvePageTable,
 	pci_addr: Option<u32>,
 }
 
@@ -233,7 +231,7 @@ impl KvmCpu {
 		&self,
 		entry_point: u64,
 		stack_address: u64,
-		pagetable: UhyvePageTable,
+		guest_address: u64,
 		cpu_id: u32,
 	) -> Result<(), kvm_ioctls::Error> {
 		//debug!("Setup long mode");
@@ -246,7 +244,7 @@ impl KvmCpu {
 			| Cr0Flags::PAGING;
 		sregs.cr0 = cr0.bits();
 
-		sregs.cr3 = pagetable.BOOT_PML4.as_u64();
+		sregs.cr3 = guest_address + PML4_OFFSET;
 
 		let cr4 = Cr4Flags::PHYSICAL_ADDRESS_EXTENSION;
 		sregs.cr4 = cr4.bits();
@@ -277,7 +275,7 @@ impl KvmCpu {
 		sregs.ss = seg;
 		//sregs.fs = seg;
 		//sregs.gs = seg;
-		sregs.gdt.base = pagetable.BOOT_GDT.as_u64();
+		sregs.gdt.base = guest_address + GDT_OFFSET;
 		sregs.gdt.limit = ((std::mem::size_of::<u64>() * BOOT_GDT_MAX) - 1) as u16;
 
 		self.vcpu.set_sregs(&sregs)?;
@@ -285,7 +283,7 @@ impl KvmCpu {
 		let mut regs = self.vcpu.get_regs()?;
 		regs.rflags = 2;
 		regs.rip = entry_point;
-		regs.rdi = pagetable.BOOT_INFO_ADDR.as_u64();
+		regs.rdi = guest_address + BOOT_INFO_ADDR_OFFSET;
 		regs.rsi = cpu_id.into();
 		regs.rsp = stack_address;
 
@@ -315,10 +313,10 @@ impl KvmCpu {
 		&mut self,
 		entry_point: u64,
 		stack_address: u64,
-		pagetable: UhyvePageTable,
+		guest_address: u64,
 		cpu_id: u32,
 	) -> HypervisorResult<()> {
-		self.setup_long_mode(entry_point, stack_address, pagetable, cpu_id)?;
+		self.setup_long_mode(entry_point, stack_address, guest_address, cpu_id)?;
 		self.setup_cpuid()?;
 
 		// be sure that the multiprocessor is runable
@@ -334,11 +332,7 @@ impl KvmCpu {
 }
 
 impl VirtualCPU for KvmCpu {
-	fn new(
-		id: u32,
-		pagetable: UhyvePageTable,
-		parent_vm: Arc<UhyveVm<KvmCpu>>,
-	) -> HypervisorResult<KvmCpu> {
+	fn new(id: u32, parent_vm: Arc<UhyveVm<KvmCpu>>) -> HypervisorResult<KvmCpu> {
 		let vcpu = KVM_ACCESS
 			.lock()
 			.unwrap()
@@ -349,14 +343,13 @@ impl VirtualCPU for KvmCpu {
 			id,
 			vcpu,
 			parent_vm: parent_vm.clone(),
-			pagetable: pagetable,
 			pci_addr: None,
 		};
 		kvcpu.init(
 			parent_vm.get_entry_point(),
 			parent_vm.stack_address(),
+			parent_vm.guest_address(),
 			// TODO: remove this hack
-			parent_vm.mem.address_table,
 			id,
 		)?;
 
@@ -452,16 +445,12 @@ impl VirtualCPU for KvmCpu {
 								}
 								Hypercall::FileRead(sysread) => {
 									// TODO: Passing the entire struct on every call seems a bit weird. This should be fixed.
-									hypercall::read(
-										&self.parent_vm.mem,
-										sysread,
-									)
+									hypercall::read(&self.parent_vm.mem, sysread)
 								}
-								Hypercall::FileWrite(syswrite) => hypercall::write(
-									&self.parent_vm.mem,
-									syswrite,
-								)
-								.map_err(|_e| HypervisorError::new(libc::EFAULT))?,
+								Hypercall::FileWrite(syswrite) => {
+									hypercall::write(&self.parent_vm.mem, syswrite)
+										.map_err(|_e| HypervisorError::new(libc::EFAULT))?
+								}
 								Hypercall::FileUnlink(sysunlink) => {
 									hypercall::unlink(&self.parent_vm.mem, sysunlink)
 								}

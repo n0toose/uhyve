@@ -8,7 +8,6 @@ use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress,
 
 use crate::{
 	mem::{MemoryError, MmapMemory},
-	paging::UhyvePageTable,
 	virt_to_phys,
 };
 
@@ -116,10 +115,7 @@ pub fn read(mem: &MmapMemory, sysread: &mut ReadPrams) {
 }
 
 /// Handles an write syscall on the host.
-pub fn write(
-	mem: &MmapMemory,
-	syswrite: &WriteParams,
-) -> io::Result<()> {
+pub fn write(mem: &MmapMemory, syswrite: &WriteParams) -> io::Result<()> {
 	let mut bytes_written: usize = 0;
 	while bytes_written != syswrite.len {
 		unsafe {

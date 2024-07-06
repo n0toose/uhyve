@@ -24,8 +24,8 @@ use crate::arch::x86_64::{
 #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 use crate::linux::x86_64::kvm_cpu::initialize_kvm;
 use crate::{
-	arch, consts::*, mem::MmapMemory, os::HypervisorError, paging::UhyvePageTable, params::Params,
-	vcpu::VirtualCPU, virtio::*,
+	consts::*, mem::MmapMemory, os::HypervisorError, params::Params, vcpu::VirtualCPU, virtio::*,
+	x86_64::paging::init_guest_mem,
 };
 
 pub type HypervisorResult<T> = Result<T, HypervisorError>;
@@ -76,6 +76,7 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	offset: u64,
 	entry_point: u64,
 	stack_address: u64,
+	guest_address: u64,
 	pub mem: Arc<MmapMemory>,
 	num_cpus: u32,
 	path: PathBuf,
@@ -92,10 +93,14 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let memory_size = params.memory_size.get();
 
 		#[cfg(target_os = "linux")]
-		// TODO: Try 0x10000, 0x16000, 0x20000, 0x30000, 0x40000, 0x80000 using RUST_LOG=debug.
-		// The MmioRead/MmioWrite behavior is entirely different.
-		let guest_address = PhysAddr::new(0x50000);
-		let mem = MmapMemory::new(0, memory_size, guest_address, params.thp, params.ksm);
+		let guest_address = 0x50000;
+		let mem = MmapMemory::new(
+			0,
+			memory_size,
+			PhysAddr::new(guest_address),
+			params.thp,
+			params.ksm,
+		);
 		#[cfg(not(target_os = "linux"))]
 		let mem = MmapMemory::new(0, memory_size, arch::RAM_START, false, false);
 
@@ -123,6 +128,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			offset: 0,
 			entry_point: 0,
 			stack_address: 0,
+			guest_address: guest_address,
 			mem: mem.into(),
 			num_cpus: cpu_count,
 			path: kernel_path,
@@ -156,6 +162,10 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		self.stack_address
 	}
 
+	pub fn guest_address(&self) -> u64 {
+		self.guest_address
+	}
+
 	/// Returns the number of cores for the vm.
 	pub fn num_cpus(&self) -> u32 {
 		self.num_cpus
@@ -172,10 +182,11 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 	/// Initialize the page tables for the guest
 	fn init_guest_mem(&mut self) {
 		debug!("Initialize guest memory");
-		self.mem.address_table.init_guest_mem(
+		init_guest_mem(
 			unsafe { self.mem.as_slice_mut() } // slice only lives during this fn call
 				.try_into()
 				.expect("Guest memory is not large enough for pagetables"),
+			self.guest_address,
 		);
 	}
 
@@ -228,7 +239,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		};
 		unsafe {
 			let raw_boot_info_ptr =
-				self.mem.host_address.add(INFO_ADDR_OFFSET as usize) as *mut RawBootInfo;
+				self.mem.host_address.add(BOOT_INFO_ADDR_OFFSET as usize) as *mut RawBootInfo;
 			*raw_boot_info_ptr = RawBootInfo::from(boot_info);
 			self.boot_info = raw_boot_info_ptr;
 		}
