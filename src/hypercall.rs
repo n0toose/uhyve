@@ -121,7 +121,6 @@ pub fn write(mem: &MmapMemory, syswrite: &WriteParams) -> io::Result<()> {
 			let step = libc::write(
 				syswrite.fd,
 				mem.host_address(
-					// TODO: What to do with virt_to_phys?
 					virt_to_phys(syswrite.buf + bytes_written as u64, mem).unwrap(),
 				)
 				.map_err(|e| match e {
