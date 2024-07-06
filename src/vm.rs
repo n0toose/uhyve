@@ -15,7 +15,7 @@ use hermit_entry::{
 };
 use log::{error, warn};
 use thiserror::Error;
-use x86_64::PhysAddr;
+use uhyve_interface::GuestPhysAddr;
 
 #[cfg(target_arch = "x86_64")]
 use crate::arch::x86_64::{
@@ -97,7 +97,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let mem = MmapMemory::new(
 			0,
 			memory_size,
-			PhysAddr::new(guest_address),
+			GuestPhysAddr::new(guest_address),
 			params.thp,
 			params.ksm,
 		);
