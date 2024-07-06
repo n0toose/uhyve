@@ -242,7 +242,7 @@ mod tests {
 	#[test]
 	fn test_virt_to_phys() {
 		let guest_address = 0x11111000;
-		let mem = MmapMemory::new(0, MIN_PHYSMEM_SIZE * 2, PhysAddr::new(guest_address), true, true);
+		let mem = MmapMemory::new(0, MIN_PHYSMEM_SIZE * 2, GuestPhysAddr::new(guest_address), true, true);
 		initialize_pagetables(
 			unsafe { mem.as_slice_mut() }.try_into().unwrap(),
 			guest_address,
@@ -265,12 +265,12 @@ mod tests {
 		// the first entry on the 3rd level entry in the pagetables is the address of the boot pdpte
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFFFE00000);
 		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
-		assert_eq!(p_addr, PhysAddr::new(guest_address + PDPTE_OFFSET));
+		assert_eq!(p_addr, GuestPhysAddr::new(guest_address + PDPTE_OFFSET));
 
 		// the first entry on the 2rd level entry in the pagetables is the address of the boot pde
 		let virt_addr = GuestVirtAddr::new(0xFFFFFFFFC0000000);
 		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
-		assert_eq!(p_addr, PhysAddr::new(guest_address + PDE_OFFSET));
+		assert_eq!(p_addr, GuestPhysAddr::new(guest_address + PDE_OFFSET));
 		// That address points to a huge page
 		assert!(
 			PageTableFlags::from_bits_truncate(mem.read::<u64>(p_addr).unwrap()).contains(
