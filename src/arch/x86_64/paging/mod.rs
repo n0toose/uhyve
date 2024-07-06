@@ -1,5 +1,3 @@
-
-
 use uhyve_interface::GuestPhysAddr;
 use x86_64::{
 	structures::paging::{Page, PageTable, PageTableFlags, Size2MiB},
@@ -97,41 +95,47 @@ pub fn create_gdt_entry(flags: u64, base: u64, limit: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
+
 	use super::*;
 	use crate::consts::{GDT_OFFSET, PDE_OFFSET, PDPTE_OFFSET, PML4_OFFSET};
 
 	#[test]
 	fn test_pagetable_initialization() {
-		let guest_address = 0;
-		let addr = 0x1000;
+		let guest_address = 0x15000;
 
-		// TODO: Stop using the hardcoded MIN_PHYSMEM_SIZE.
-		let mut mem: Vec<u8> = vec![0; 0x13000];
-		initialize_pagetables((&mut mem[0..0x13000]).try_into().unwrap(), guest_address);
+		let mut mem: Vec<u8> = vec![0; MIN_PHYSMEM_SIZE];
+		// This will return a pagetable setup that we will check.
+		initialize_pagetables(
+			(&mut mem[0..MIN_PHYSMEM_SIZE]).try_into().unwrap(),
+			guest_address,
+		);
 
-		// Test pagetable setup
+		// Check PDPTE address
 		let addr_pdpte = u64::from_le_bytes(
 			mem[(PML4_OFFSET as usize)..(PML4_OFFSET as usize + 8)]
 				.try_into()
 				.unwrap(),
 		);
 		assert_eq!(
-			addr_pdpte - addr,
+			addr_pdpte - guest_address,
 			PDPTE_OFFSET | (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);
+
+		// Check PDE
 		let addr_pde = u64::from_le_bytes(
 			mem[(PDPTE_OFFSET as usize)..(PDPTE_OFFSET as usize + 8)]
 				.try_into()
 				.unwrap(),
 		);
 		assert_eq!(
-			addr_pde - addr,
+			addr_pde - guest_address,
 			PDE_OFFSET | (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);
 
+		// Check PDE's pagetable bits
 		for i in (0..4096).step_by(8) {
-			let addr = (guest_address + PDE_OFFSET) as usize + i;
-			let entry = u64::from_le_bytes(mem[addr..(addr + 8)].try_into().unwrap());
+			let pde_addr = (PDE_OFFSET) as usize + i;
+			let entry = u64::from_le_bytes(mem[pde_addr..(pde_addr + 8)].try_into().unwrap());
 			assert!(
 				PageTableFlags::from_bits_truncate(entry)
 					.difference(
@@ -139,20 +143,15 @@ mod tests {
 							| PageTableFlags::WRITABLE | PageTableFlags::HUGE_PAGE
 					)
 					.is_empty(),
-				"Pagetable bits at {addr:#x} are incorrect"
+				"Pagetable bits at {pde_addr:#x} are incorrect"
 			)
 		}
 
 		// Test GDT
-		// TODO: Fix test
 		let gdt_results = [0x0, 0xAF9B000000FFFF, 0xCF93000000FFFF];
 		for (i, res) in gdt_results.iter().enumerate() {
-			let gdt_addr = (addr + GDT_OFFSET) as usize + i * 8;
-			let gdt_entry = u64::from_le_bytes(
-				mem[GDT_OFFSET as usize..GDT_OFFSET as usize + 8]
-					.try_into()
-					.unwrap(),
-			);
+			let gdt_addr = GDT_OFFSET as usize + i * 8;
+			let gdt_entry = u64::from_le_bytes(mem[gdt_addr..gdt_addr + 8].try_into().unwrap());
 			assert_eq!(*res, gdt_entry);
 		}
 	}

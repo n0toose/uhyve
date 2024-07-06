@@ -113,7 +113,7 @@ pub fn get_cpu_frequency_from_os() -> std::result::Result<u32, FrequencyDetectio
 /// Converts a virtual address in the guest to a physical address in the guest
 pub fn virt_to_phys(
 	addr: GuestVirtAddr,
-	mem: &MmapMemory,
+	mem: &MmapMemory
 ) -> Result<GuestPhysAddr, PagetableError> {
 	/// Number of Offset bits of a virtual address for a 4 KiB page, which are shifted away to get its Page Frame Number (PFN).
 	pub const PAGE_BITS: u64 = 12;
