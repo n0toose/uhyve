@@ -16,7 +16,6 @@ use x86_64::structures::paging::{
 	PageTable, PageTableIndex,
 };
 
-// TODO: Make this less trash.
 use crate::{consts::PML4_OFFSET, mem::MmapMemory, paging::PagetableError};
 
 pub const RAM_START: GuestPhysAddr = GuestPhysAddr::new(0x00);
@@ -157,7 +156,7 @@ mod tests {
 
 	use super::*;
 	use crate::{
-		consts::{PDE_OFFSET, PDPTE_OFFSET, PML4_OFFSET},
+		consts::{MIN_PHYSMEM_SIZE, PDE_OFFSET, PDPTE_OFFSET, PML4_OFFSET},
 		x86_64::paging::initialize_pagetables,
 	};
 
@@ -243,8 +242,7 @@ mod tests {
 	#[test]
 	fn test_virt_to_phys() {
 		let guest_address = 0x11111000;
-		// TODO: Stop using the hardcoded MIN_PHYSMEM_SIZE.
-		let mem = MmapMemory::new(0, 0x13000 * 2, PhysAddr::new(guest_address), true, true);
+		let mem = MmapMemory::new(0, MIN_PHYSMEM_SIZE * 2, PhysAddr::new(guest_address), true, true);
 		initialize_pagetables(
 			unsafe { mem.as_slice_mut() }.try_into().unwrap(),
 			guest_address,
@@ -260,7 +258,6 @@ mod tests {
 		let p_addr = virt_to_phys(virt_addr, &mem).unwrap();
 		assert_eq!(
 			mem.read::<u64>(p_addr).unwrap(),
-			// TODO: Clean this up.
 			(guest_address + PML4_OFFSET)
 				| (PageTableFlags::PRESENT | PageTableFlags::WRITABLE).bits()
 		);

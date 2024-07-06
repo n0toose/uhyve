@@ -308,7 +308,6 @@ impl KvmCpu {
 		&mut self.vcpu
 	}
 
-	// TODO: Clean this up.
 	fn init(
 		&mut self,
 		entry_point: u64,
@@ -349,7 +348,6 @@ impl VirtualCPU for KvmCpu {
 			parent_vm.get_entry_point(),
 			parent_vm.stack_address(),
 			parent_vm.guest_address(),
-			// TODO: remove this hack
 			id,
 		)?;
 
@@ -444,7 +442,6 @@ impl VirtualCPU for KvmCpu {
 									hypercall::open(&self.parent_vm.mem, sysopen)
 								}
 								Hypercall::FileRead(sysread) => {
-									// TODO: Passing the entire struct on every call seems a bit weird. This should be fixed.
 									hypercall::read(&self.parent_vm.mem, sysread)
 								}
 								Hypercall::FileWrite(syswrite) => {

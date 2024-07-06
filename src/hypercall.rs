@@ -101,7 +101,6 @@ pub fn read(mem: &MmapMemory, sysread: &mut ReadPrams) {
 	unsafe {
 		let bytes_read = libc::read(
 			sysread.fd,
-			// TODO: What to do with virt_to_phys?
 			mem.host_address(virt_to_phys(sysread.buf, mem).unwrap())
 				.unwrap() as *mut libc::c_void,
 			sysread.len,
