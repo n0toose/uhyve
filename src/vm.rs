@@ -1,12 +1,5 @@
 use std::{
-	ffi::OsString,
-	fmt, fs, io,
-	marker::PhantomData,
-	num::NonZeroU32,
-	path::PathBuf,
-	ptr,
-	sync::{Arc, Mutex},
-	time::SystemTime,
+	borrow::BorrowMut, ffi::OsString, fmt, fs, io, marker::PhantomData, num::NonZeroU32, path::PathBuf, ptr, sync::{Arc, Mutex}, time::SystemTime
 };
 
 use hermit_entry::{
@@ -14,7 +7,12 @@ use hermit_entry::{
 	elf::{KernelObject, LoadedKernel, ParseKernelError},
 };
 use log::{error, warn};
+#[cfg(feature = "aslr")]
+use rand::Rng;
 use thiserror::Error;
+use uhyve_interface::GuestPhysAddr;
+
+use std::sync::OnceLock;
 
 #[cfg(target_arch = "x86_64")]
 use crate::arch::x86_64::{
@@ -40,6 +38,8 @@ pub enum LoadKernelError {
 }
 
 pub type LoadKernelResult<T> = Result<T, LoadKernelError>;
+
+pub static guest_address: OnceLock<u64> = OnceLock::new();
 
 // TODO: move to architecture specific section
 fn detect_cpu_freq() -> u32 {
@@ -75,7 +75,6 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	offset: u64,
 	entry_point: u64,
 	stack_address: u64,
-	guest_address: u64,
 	pub mem: Arc<MmapMemory>,
 	num_cpus: u32,
 	path: PathBuf,
@@ -91,20 +90,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 	pub fn new(kernel_path: PathBuf, params: Params) -> HypervisorResult<UhyveVm<VCpuType>> {
 		let memory_size = params.memory_size.get();
 
-		// TODO: Move functionality to load_kernel. We don't know whether the binaries are relocatable yet.
-		// TODO: Use random address instead of arch::RAM_START here.
-		#[cfg(target_os = "linux")]
-		#[cfg(target_arch = "x86_64")]
 		let mem = MmapMemory::new(0, memory_size, arch::RAM_START, params.thp, params.ksm);
-
-		// TODO: guest_address is only taken into account on Linux platforms.
-		// TODO: Before changing this, fix init_guest_mem in `src/arch/aarch64/mod.rs`
-		#[cfg(target_os = "linux")]
-		#[cfg(not(target_arch = "x86_64"))]
-		let mem = MmapMemory::new(0, memory_size, arch::RAM_START, params.thp, params.ksm);
-
-		#[cfg(not(target_os = "linux"))]
-		let mem = MmapMemory::new(0, memory_size, arch::RAM_START, false, false);
 
 		// create virtio interface
 		// TODO: Remove allow once fixed:
@@ -130,7 +116,6 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			offset: 0,
 			entry_point: 0,
 			stack_address: 0,
-			guest_address: mem.guest_address.as_u64(),
 			mem: mem.into(),
 			num_cpus: cpu_count,
 			path: kernel_path,
@@ -141,8 +126,6 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			gdb_port: params.gdb_port,
 			_vcpu_type: PhantomData,
 		};
-
-		vm.init_guest_mem();
 
 		Ok(vm)
 	}
@@ -165,7 +148,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 	}
 
 	pub fn guest_address(&self) -> u64 {
-		self.guest_address
+		self.mem.guest_address.as_u64()
 	}
 
 	/// Returns the number of cores for the vm.
@@ -188,27 +171,56 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			unsafe { self.mem.as_slice_mut() } // slice only lives during this fn call
 				.try_into()
 				.expect("Guest memory is not large enough for pagetables"),
-			self.guest_address,
+			self.mem.guest_address.as_u64(),
 		);
+	}
+
+	fn generate_address(&mut self, _object_mem_size: usize) -> u64 {
+		// The offset of the kernel in the memory.
+		// Must be larger than BOOT_INFO_OFFSET + KERNEL_STACK_SIZE
+		let kernel_offset = 0x40_000_usize;
+
+		#[cfg(feature = "aslr")]
+		#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+		{
+			let mut rng = rand::thread_rng();
+
+			let start_address_upper_bound: u64 = self.mem.memory_size as u64
+				- self.mem.guest_address.as_u64()
+				- _object_mem_size as u64;
+
+			self.mem.guest_address = GuestPhysAddr::new(rng.gen_range(0x100000..start_address_upper_bound) & 0x000F_FFFF_FFFF_0000);
+		}
+
+		#[cfg(feature = "aslr")]
+		#[cfg(not(all(target_arch = "x86_64", target_os = "linux")))]
+		{
+			warn!("ASLR disabled: Only supported in x86_64-based Linux environments.");
+		}
+
+		self.mem.guest_address.as_u64() + kernel_offset as u64
 	}
 
 	pub fn load_kernel(&mut self) -> LoadKernelResult<()> {
 		let elf = fs::read(self.kernel_path())?;
 		let object = KernelObject::parse(&elf).map_err(LoadKernelError::ParseKernelError)?;
 
-		// The offset of the kernel in the Memory. Must be larger than BOOT_INFO_OFFSET + KERNEL_STACK_SIZE
-		let kernel_offset = 0x40_000_usize;
-		// TODO: should be a random start address, if we have a relocatable executable
+		// Check if kernel_start_address is Some.
+		// If not, and if #[cfg(feature = "aslr")]
+		//  - generate new address
+
 		let kernel_start_address = object
 			.start_addr()
-			.unwrap_or(self.mem.guest_address.as_u64() + kernel_offset as u64)
-			as usize;
+			.unwrap_or(self.generate_address(object.mem_size())) as usize;
+
 		let kernel_end_address = kernel_start_address + object.mem_size();
 		self.offset = kernel_start_address as u64;
 
 		if kernel_end_address > self.mem.memory_size - self.mem.guest_address.as_u64() as usize {
 			return Err(LoadKernelError::InsufficientMemory);
 		}
+
+		self.init_guest_mem();
 
 		let LoadedKernel {
 			load_info,
@@ -261,7 +273,6 @@ impl<VCpuType: VirtualCPU> fmt::Debug for UhyveVm<VCpuType> {
 		f.debug_struct("UhyveVm")
 			.field("entry_point", &self.entry_point)
 			.field("stack_address", &self.stack_address)
-			.field("guest_address", &self.guest_address)
 			.field("mem", &self.mem)
 			.field("num_cpus", &self.num_cpus)
 			.field("path", &self.path)
