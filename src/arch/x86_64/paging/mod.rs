@@ -12,9 +12,10 @@ use crate::consts::*;
 /// Also, the memory `mem` needs to be zeroed for [`PAGE_SIZE`] bytes at the
 /// offsets [`BOOT_PML4`] and [`BOOT_PDPTE`], otherwise the integrity of the
 /// pagetables and thus the integrity of the guest's memory is not ensured
-pub fn initialize_pagetables(mem: &mut [u8], guest_address: u64) {
+pub fn initialize_pagetables(mem: &mut [u8]) {
 	assert!(mem.len() >= MIN_PHYSMEM_SIZE);
 	let mem_addr = std::ptr::addr_of_mut!(mem[0]);
+	let guest_address = (*crate::vm::GUEST_ADDRESS.get().unwrap()).as_u64();
 
 	let (gdt_entry, pml4, pdpte, pde);
 	// Safety:
@@ -99,10 +100,7 @@ mod tests {
 
 		let mut mem: Vec<u8> = vec![0; MIN_PHYSMEM_SIZE];
 		// This will return a pagetable setup that we will check.
-		initialize_pagetables(
-			(&mut mem[0..MIN_PHYSMEM_SIZE]).try_into().unwrap(),
-			guest_address,
-		);
+		initialize_pagetables((&mut mem[0..MIN_PHYSMEM_SIZE]).try_into().unwrap());
 
 		// Check PDPTE address
 		let addr_pdpte = u64::from_le_bytes(

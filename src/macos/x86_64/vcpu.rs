@@ -648,7 +648,7 @@ impl VirtualCPU for XhyveCpu {
 		vcpu.init(
 			parent_vm.get_entry_point(),
 			parent_vm.stack_address(),
-			parent_vm.guest_address(),
+			,
 			id,
 		)?;
 

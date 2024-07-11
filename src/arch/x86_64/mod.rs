@@ -121,8 +121,9 @@ pub fn virt_to_phys(
 	/// Number of bits of the index in each table (PML4, PDPT, PDT, PGT).
 	pub const PAGE_MAP_BITS: usize = 9;
 
+	let guest_address = (*crate::vm::GUEST_ADDRESS.get().unwrap()).as_u64();
 	let mut page_table = unsafe {
-		(mem.host_address(GuestPhysAddr::new(mem.guest_address.as_u64() + PML4_OFFSET))
+		(mem.host_address(GuestPhysAddr::new(guest_address + PML4_OFFSET))
 			.unwrap() as *mut PageTable)
 			.as_mut()
 	}
@@ -153,9 +154,9 @@ pub fn virt_to_phys(
 	Ok(entry.addr() + (addr.as_u64() & !((!0u64) << PAGE_BITS)))
 }
 
-pub fn init_guest_mem(mem: &mut [u8], guest_address: u64) {
+pub fn init_guest_mem(mem: &mut [u8]) {
 	// TODO: we should maybe return an error on failure (e.g., the memory is too small)
-	paging::initialize_pagetables(mem, guest_address);
+	paging::initialize_pagetables(mem);
 }
 
 #[cfg(test)]
@@ -256,7 +257,6 @@ mod tests {
 		);
 		init_guest_mem(
 			unsafe { mem.as_slice_mut() }.try_into().unwrap(),
-			guest_address,
 		);
 
 		// Get the address of the first entry in PML4 (the address of the PML4 itself)
