@@ -181,7 +181,10 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let kernel_offset = 0x40_000_usize;
 
 		#[cfg(feature = "aslr")]
-		#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+		#[cfg(not(all(target_arch = "x86_64", target_os = "linux")))]
+		compile_error!("ASLR is only supported on Linux (x86_64)")
+
+		#[cfg(feature = "aslr")]
 		{
 			let mut rng = rand::thread_rng();
 
@@ -189,7 +192,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 				- self.mem.guest_address.as_u64()
 				- _object_mem_size as u64;
 
-			self.mem.guest_address = GuestPhysAddr::new(rng.gen_range(0x100000..start_address_upper_bound) & 0x000F_FFFF_FFFF_0000);
+			*self.mem.guest_address = GuestPhysAddr::new(rng.gen_range(0x100000..start_address_upper_bound) & 0x000F_FFFF_FFFF_0000);
 		}
 
 		#[cfg(feature = "aslr")]
