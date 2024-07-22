@@ -14,8 +14,10 @@ pub const PML4_OFFSET: u64 = 0x10000;
 pub const PGT_OFFSET: u64 = 0x10000;
 pub const PDPTE_OFFSET: u64 = 0x11000;
 pub const PDE_OFFSET: u64 = 0x12000;
-pub const BOOT_INFO_ADDR_OFFSET: u64 = 0x9000;
+pub const BOOT_INFO_ADDR_OFFSET: u64 = 0x9000
+;
 pub const MIN_PHYSMEM_SIZE: usize = 0x13000;
+pub const KERNEL_OFFSET: usize = 0x40000;
 
 pub const EFER_SCE: u64 = 1; /* System Call Extensions */
 pub const EFER_LME: u64 = 1 << 8; /* Long mode enable */

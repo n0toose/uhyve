@@ -1,12 +1,5 @@
 use std::{
-	ffi::OsString,
-	fmt, fs, io,
-	marker::PhantomData,
-	num::NonZeroU32,
-	path::PathBuf,
-	ptr,
-	sync::{Arc, Mutex, OnceLock},
-	time::SystemTime,
+	borrow::{Borrow, BorrowMut}, ffi::OsString, fmt, fs, io, marker::PhantomData, num::NonZeroU32, path::PathBuf, ptr, sync::{Arc, Mutex, OnceLock}, time::SystemTime
 };
 
 use hermit_entry::{
@@ -31,6 +24,9 @@ use crate::{
 pub type HypervisorResult<T> = Result<T, HypervisorError>;
 
 pub static GUEST_ADDRESS: OnceLock<GuestPhysAddr> = OnceLock::new();
+static START_ADDRESS: OnceLock<GuestPhysAddr> = OnceLock::new();
+static END_ADDRESS: OnceLock<GuestPhysAddr> = OnceLock::new();
+static KERNEL_OBJECT: OnceLock<&KernelObject<'_>> = OnceLock::new();
 
 #[derive(Error, Debug)]
 pub enum LoadKernelError {
@@ -95,8 +91,21 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		let memory_size = params.memory_size.get();
 		let guest_address = *GUEST_ADDRESS.get_or_init(|| arch::RAM_START);
 
-		// TODO: Move functionality to load_kernel. We don't know whether the binaries are relocatable yet.
-		// TODO: Use random address instead of arch::RAM_START here.
+		// Reads ELF file, returns libc:ENOENT if the file is not found.
+		// TODO: Restore map_err(LoadKernelError::ParseKernelError) or use a separate struct
+		let elf = fs::read(&kernel_path)?;
+		let object = KernelObject::parse(&elf).as_ref().map_err(
+			|_err| HypervisorError::new(libc::ENOENT)
+		)?;
+
+		let kernel_start_address = object
+			.start_addr()
+			.unwrap_or_else(|| self.mem.guest_address.as_u64() + KERNEL_OFFSET as u64)
+			as usize;
+
+		let kernel_end_address = kernel_start_address + object.mem_size();
+		let offset = kernel_start_address as u64;
+
 		#[cfg(target_os = "linux")]
 		#[cfg(target_arch = "x86_64")]
 		let mem = MmapMemory::new(
@@ -214,18 +223,9 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 	}
 
 	pub fn load_kernel(&mut self) -> LoadKernelResult<()> {
-		let elf = fs::read(self.kernel_path())?;
-		let object = KernelObject::parse(&elf).map_err(LoadKernelError::ParseKernelError)?;
-
-		// The offset of the kernel in the Memory. Must be larger than BOOT_INFO_OFFSET + KERNEL_STACK_SIZE
-		let kernel_offset = 0x40_000_usize;
+		let object = self.object;
+		// The offset of the kernel in the memory. Must be larger than BOOT_INFO_OFFSET + KERNEL_STACK_SIZE
 		// TODO: should be a random start address, if we have a relocatable executable
-		let kernel_start_address = object
-			.start_addr()
-			.unwrap_or_else(|| self.mem.guest_address.as_u64() + kernel_offset as u64)
-			as usize;
-		let kernel_end_address = kernel_start_address + object.mem_size();
-		self.offset = kernel_start_address as u64;
 
 		if kernel_end_address > self.mem.memory_size - self.mem.guest_address.as_u64() as usize {
 			return Err(LoadKernelError::InsufficientMemory);
