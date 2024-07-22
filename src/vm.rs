@@ -38,6 +38,7 @@ pub enum LoadKernelError {
 	InsufficientMemory,
 }
 
+use uhyve_interface::GuestVirtAddr;
 pub type LoadKernelResult<T> = Result<T, LoadKernelError>;
 
 // TODO: move to architecture specific section
@@ -74,8 +75,9 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	offset: u64,
 	entry_point: u64,
 	stack_address: u64,
-	guest_address: GuestPhysAddr,
+	start_address: GuestVirtAddr,
 	pub mem: Arc<MmapMemory>,
+	object: KernelObject<'_>,
 	num_cpus: u32,
 	path: PathBuf,
 	args: Vec<OsString>,
@@ -88,23 +90,21 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 }
 impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 	pub fn new(kernel_path: PathBuf, params: Params) -> HypervisorResult<UhyveVm<VCpuType>> {
+		let mut guest_address = arch::RAM_START;
 		let memory_size = params.memory_size.get();
-		let guest_address = *GUEST_ADDRESS.get_or_init(|| arch::RAM_START);
 
 		// Reads ELF file, returns libc:ENOENT if the file is not found.
 		// TODO: Restore map_err(LoadKernelError::ParseKernelError) or use a separate struct
 		let elf = fs::read(&kernel_path)?;
-		let object = KernelObject::parse(&elf).as_ref().map_err(
+		let object = KernelObject::parse(&elf).map_err(
 			|_err| HypervisorError::new(libc::ENOENT)
 		)?;
 
-		let kernel_start_address = object
-			.start_addr()
-			.unwrap_or_else(|| self.mem.guest_address.as_u64() + KERNEL_OFFSET as u64)
-			as usize;
+		let start_address = object.start_addr().unwrap_or_else(|| {
+			guest_address.as_u64() + KERNEL_OFFSET as u64
+		});
 
-		let kernel_end_address = kernel_start_address + object.mem_size();
-		let offset = kernel_start_address as u64;
+		*GUEST_ADDRESS.get_or_init(|| guest_address);
 
 		#[cfg(target_os = "linux")]
 		#[cfg(target_arch = "x86_64")]
@@ -161,8 +161,9 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			offset: 0,
 			entry_point: 0,
 			stack_address: 0,
-			guest_address: guest_address,
+			start_address: GuestVirtAddr::new(start_address),
 			mem: mem.into(),
+			object: object.into(),
 			num_cpus: cpu_count,
 			path: kernel_path,
 			args: params.kernel_args,
@@ -195,8 +196,8 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		self.stack_address
 	}
 
-	pub fn guest_address(&self) -> u64 {
-		self.guest_address.as_u64()
+	pub fn start_address(&self) -> GuestVirtAddr {
+		self.start_address
 	}
 
 	/// Returns the number of cores for the vm.
@@ -224,6 +225,8 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 
 	pub fn load_kernel(&mut self) -> LoadKernelResult<()> {
 		let object = self.object;
+		let kernel_end_address = self.stack_address as usize + object.mem_size();
+		self.offset = self.start_address.as_u64();
 		// The offset of the kernel in the memory. Must be larger than BOOT_INFO_OFFSET + KERNEL_STACK_SIZE
 		// TODO: should be a random start address, if we have a relocatable executable
 
@@ -237,8 +240,8 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		} = object.load_kernel(
 			// Safety: Slice only lives during this fn call, so no aliasing happens
 			&mut unsafe { self.mem.as_slice_uninit_mut() }
-				[self.offset as usize..object.mem_size() + self.offset as usize],
-			kernel_start_address as u64,
+				[self.offset as usize..kernel_end_address as usize],
+			self.offset,
 		);
 		self.entry_point = entry_point;
 
@@ -267,8 +270,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			self.boot_info = raw_boot_info_ptr;
 		}
 
-		self.stack_address = (kernel_start_address as u64)
-			.checked_sub(KERNEL_STACK_SIZE)
+		self.stack_address = (self.start_address.as_u64()).checked_sub(KERNEL_STACK_SIZE)
 			.expect(
 				"there should be enough space for the boot stack before the kernel start address",
 			);
@@ -281,8 +283,8 @@ impl<VCpuType: VirtualCPU> fmt::Debug for UhyveVm<VCpuType> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("UhyveVm")
 			.field("entry_point", &self.entry_point)
+			.field("start_address", &self.start_address)
 			.field("stack_address", &self.stack_address)
-			.field("guest_address", &self.guest_address.as_u64())
 			.field("mem", &self.mem)
 			.field("num_cpus", &self.num_cpus)
 			.field("path", &self.path)
