@@ -35,6 +35,9 @@ pub struct Params {
 
 	/// Arguments to forward to the kernel
 	pub kernel_args: Vec<String>,
+
+	/// Paths to whitelist
+	pub mount: Vec<String>,
 }
 
 #[allow(clippy::derivable_impls)]
@@ -51,6 +54,7 @@ impl Default for Params {
 			pit: false,
 			cpu_count: Default::default(),
 			gdb_port: Default::default(),
+			mount: Default::default(),
 			kernel_args: Default::default(),
 		}
 	}

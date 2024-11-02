@@ -55,6 +55,15 @@ struct Args {
 	#[cfg(target_os = "linux")]
 	gdb_port: Option<u16>,
 
+	/// Paths that the kernel should be able to view, read or write.
+	/// Values are separated using commas.
+	/// Custom mount paths can be included by using a colon.
+	///
+	/// Example: --mount directory:/root/custom_path_for_my_directory,file.txt,./path1/file2.yaml,/dev/urandom
+	#[arg(value_delimiter = ',')]
+	#[clap(long, env = "HERMIT_MOUNT")]
+	mount: Vec<String>,
+
 	/// The kernel to execute
 	#[clap(value_parser)]
 	kernel: PathBuf,
@@ -243,6 +252,7 @@ impl From<Args> for Params {
 				},
 			#[cfg(target_os = "linux")]
 			gdb_port,
+			mount,
 			kernel: _,
 			kernel_args,
 		} = args;
@@ -256,6 +266,7 @@ impl From<Args> for Params {
 			cpu_count,
 			#[cfg(target_os = "linux")]
 			pit,
+			mount,
 			#[cfg(target_os = "linux")]
 			gdb_port,
 			#[cfg(target_os = "macos")]

@@ -26,6 +26,7 @@ use crate::{
 	arch::{self, FrequencyDetectionFailed},
 	consts::*,
 	fdt::Fdt,
+	isolation::*,
 	mem::MmapMemory,
 	os::HypervisorError,
 	params::Params,
@@ -118,6 +119,7 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	pub virtio_device: Arc<Mutex<VirtioNetPciDevice>>,
 	#[allow(dead_code)] // gdb is not supported on macos
 	pub(super) gdb_port: Option<u16>,
+	file_parameters: UhyveFileParameters,
 	_vcpu_type: PhantomData<VCpuType>,
 }
 impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
@@ -149,6 +151,13 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			"gdbstub is only supported with one CPU"
 		);
 
+		// TODO: Run fs::canonicalize once here, store "real" and "fake" paths in separate variables.
+		// https://docs.rs/itertools/latest/itertools/trait.Itertools.html#method.partition_map
+		// TODO: Move to isolation.rs
+		let mount_parameter: Vec<String> = params.mount.clone();
+		let mut file_parameters: UhyveFileParameters = UhyveFileParameters::new();
+		file_parameters.populate(mount_parameter);
+
 		let mut vm = Self {
 			offset: 0,
 			entry_point: 0,
@@ -161,6 +170,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			verbose: params.verbose,
 			virtio_device,
 			gdb_port: params.gdb_port,
+			file_parameters,
 			_vcpu_type: PhantomData,
 		};
 
