@@ -1,5 +1,5 @@
 use std::{
-	ffi::OsStr,
+	ffi::{CStr, OsStr},
 	io::{self, Error, ErrorKind, Write},
 	os::unix::ffi::OsStrExt,
 };
@@ -85,9 +85,18 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams) {
 
 /// Handles an open syscall by opening a file on the host.
 pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams) {
+	let path = mem.host_address(sysopen.name).unwrap() as *const i8;
+
+	// too lazy to use warn! or debug! tbh
+	error!("\nThis is the address: {:#?}\n", path);
+
+	let c_str = unsafe { CStr::from_ptr(path) };
+	let actual_path = c_str.to_str().unwrap();
+	error!("\nThis is the path: {:#?}\n", actual_path);
+
 	unsafe {
 		sysopen.ret = libc::open(
-			mem.host_address(sysopen.name).unwrap() as *const i8,
+			path,
 			sysopen.flags,
 			sysopen.mode,
 		);
