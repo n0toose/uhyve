@@ -86,6 +86,7 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_params: &UhyveFileP
 	let path = mem.host_address(sysopen.name).unwrap() as *const i8;
 
 	// too lazy to use warn! or debug! tbh
+	// TODO: Remove this.
 	error!("\nThis is the address: {:#?}\n", path);
 
 	let c_str = unsafe { CStr::from_ptr(path) };
@@ -102,6 +103,7 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_params: &UhyveFileP
 	if true {
 		error!("Hello!\n");
 		unsafe {
+			// TODO: Use the provided host path instead.
 			sysopen.ret = libc::open(
 				path,
 				sysopen.flags,

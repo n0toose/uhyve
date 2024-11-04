@@ -18,12 +18,6 @@ impl UhyveFileParameters {
 	}
 
 	pub fn populate(&mut self, parameters: Vec<String>) -> () {
-		// This is what our approach looks like:
-		// 1. fs::canonicalize, check if it exists or not
-		// 2. Check if is is_file.
-		// 3. If neither:
-		//   - Check if the path is a valid location.
-		//   - If it isn't, consider it as an empty file.
 		if parameters.is_empty() {
 			return;
 		} else {
