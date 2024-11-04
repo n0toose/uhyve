@@ -56,10 +56,11 @@ struct Args {
 	gdb_port: Option<u16>,
 
 	/// Paths that the kernel should be able to view, read or write.
-	/// Values are separated using commas.
-	/// Custom mount paths can be included by using a colon.
+	/// 
+	/// Files and directories are separated using commas.
+	/// Desired mount paths must be explicitly defined after a colon.
 	///
-	/// Example: --mount directory:/root/custom_path_for_my_directory,file.txt,./path1/file2.yaml,/dev/urandom
+	/// Example: --mount host_directory:/root/guest_directory,file.txt:/root/my_file.txt
 	#[arg(value_delimiter = ',')]
 	#[clap(long, env = "HERMIT_MOUNT")]
 	mount: Vec<String>,

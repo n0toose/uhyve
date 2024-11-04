@@ -4,14 +4,16 @@ use std::{
 	io::{self, Error, ErrorKind, Write},
 	os::unix::ffi::OsStrExt,
 	path::{Path, PathBuf},
-	str::FromStr,
+	str::{FromStr, Utf8Error},
 };
+
+use std::ffi::CString;
 
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
 
 use crate::{
 	consts::BOOT_PML4,
-	isolation::UhyveFileParameters,
+	isolation::UhyveFileMap,
 	mem::{MemoryError, MmapMemory},
 	virt_to_phys,
 };
@@ -88,32 +90,54 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams) {
 }
 
 /// Handles an open syscall by opening a file on the host.
-pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_params: &UhyveFileParameters) {
-	let path = mem.host_address(sysopen.name).unwrap() as *const i8;
+pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveFileMap>) {
+	let mut path = mem.host_address(sysopen.name).unwrap() as *const i8;
 
-	// too lazy to use warn! or debug! tbh
-	// TODO: Remove this.
-	error!("\nThis is the address: {:#?}\n", path);
+	// If the file_map doesn't exist, the provided path will be used instead.
+	// (i.e. host filesystem access).
+	if !file_map.is_none() {
+		// Rust deals in UTF-8. C doesn't provide such a guarantee.
+		// In that case, converting a CStr to str will return a Utf8Error.
+		// 
+		// FIXME: "The nul terminator must be within isize::MAX from ptr".
+		// Can this be guaranteed in Hermit itself?
+		//
+		// See: https://nrc.github.io/big-book-ffi/reference/strings.html
+		let guest_path = unsafe { CStr::from_ptr(path) }.to_str();
 
-	let c_str = unsafe { CStr::from_ptr(path) };
-	let actual_path = c_str.to_str().unwrap();
-	error!("\nThis is the path: {:#?}\n", actual_path);
+		if guest_path.is_err() {
+			sysopen.ret = -1;
+			return;
+		} else {
+			let paths = file_map.as_ref().unwrap();
+			let host_path_option = paths
+				.get_paths()
+				.get_key_value(&OsString::from(guest_path.unwrap())
+			);
 
-	let paths = file_params.get_paths();
-	let (_guest_path, host_path) = paths.get_key_value(&OsString::from(actual_path)).unwrap();
-
-	error!("{:#?}", _guest_path.to_str());
-	error!("{:#?}", host_path.to_str());
-
-	if true {
-		error!("Hello!\n");
-		unsafe {
-			// TODO: Use the provided host path instead.
-			sysopen.ret = libc::open(path, sysopen.flags, sysopen.mode);
+			if !host_path_option.is_none() {
+				path = CString::new(
+					host_path_option
+					.unwrap()
+					.1
+					.as_os_str()
+					.as_encoded_bytes()
+				)
+				.unwrap()
+				.as_ptr();
+			} else {
+				sysopen.ret = -1;
+				return;
+			}
 		}
-	} else {
-		error!("Sad!\n");
-		sysopen.ret = -1;
+	}
+
+	unsafe {
+		sysopen.ret = libc::open(
+			path, 
+			sysopen.flags, 
+			sysopen.mode
+		);
 	}
 }
 
