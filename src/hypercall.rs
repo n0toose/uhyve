@@ -1,14 +1,20 @@
 use std::{
-	borrow::Borrow, ffi::{CStr, OsStr, OsString}, io::{self, Error, ErrorKind, Write}, os::unix::ffi::OsStrExt, path::{Path, PathBuf}, str::FromStr
+	borrow::Borrow,
+	ffi::{CStr, OsStr, OsString},
+	io::{self, Error, ErrorKind, Write},
+	os::unix::ffi::OsStrExt,
+	path::{Path, PathBuf},
+	str::FromStr,
 };
 
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
 
 use crate::{
-	consts::BOOT_PML4, isolation::UhyveFileParameters, mem::{MemoryError, MmapMemory}, virt_to_phys
+	consts::BOOT_PML4,
+	isolation::UhyveFileParameters,
+	mem::{MemoryError, MmapMemory},
+	virt_to_phys,
 };
-
-
 
 /// `addr` is the address of the hypercall parameter in the guest's memory space. `data` is the
 /// parameter that was send to that address by the guest.
@@ -94,8 +100,7 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_params: &UhyveFileP
 	error!("\nThis is the path: {:#?}\n", actual_path);
 
 	let paths = file_params.get_paths();
-	let (_guest_path, host_path) = paths
-		.get_key_value(&OsString::from(actual_path)).unwrap();
+	let (_guest_path, host_path) = paths.get_key_value(&OsString::from(actual_path)).unwrap();
 
 	error!("{:#?}", _guest_path.to_str());
 	error!("{:#?}", host_path.to_str());
@@ -104,11 +109,7 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_params: &UhyveFileP
 		error!("Hello!\n");
 		unsafe {
 			// TODO: Use the provided host path instead.
-			sysopen.ret = libc::open(
-				path,
-				sysopen.flags,
-				sysopen.mode,
-			);
+			sysopen.ret = libc::open(path, sysopen.flags, sysopen.mode);
 		}
 	} else {
 		error!("Sad!\n");

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::PathBuf, ffi::OsString, str::FromStr, vec::Vec};
+use std::{collections::HashMap, ffi::OsString, fs, path::PathBuf, str::FromStr, vec::Vec};
 
 pub struct UhyveFileParameters {
 	files: HashMap<OsString, PathBuf>,
@@ -70,6 +70,6 @@ impl UhyveFileParameters {
 	}
 
 	pub fn get_paths(&self) -> HashMap<OsString, PathBuf> {
-		return self.files.clone()
+		return self.files.clone();
 	}
 }
