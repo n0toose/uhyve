@@ -151,7 +151,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			"gdbstub is only supported with one CPU"
 		);
 
-		let file_map = UhyveFileMap::new(&params.mount.as_deref());
+		let file_map = params.mount.as_deref().and_then(UhyveFileMap::new);
 
 		let mut vm = Self {
 			offset: 0,

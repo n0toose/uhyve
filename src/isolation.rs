@@ -17,18 +17,13 @@ impl UhyveFileMap {
 	/// the guest operating system.
 	///
 	/// * `parameters` - A list of parameters with the format `./host_path.txt:guest.txt`
-	pub fn new(parameters: &Option<&[String]>) -> Option<UhyveFileMap> {
+	pub fn new(parameters: &[String]) -> Option<UhyveFileMap> {
 		// The CString is the guest path, the OsString is the host path.
 		let mut files: HashMap<CString, OsString> = HashMap::new();
 
 		// TODO: Introduce additional option for fully disabling filesystem access.
 		// TODO: Introduce additional option that allows storing non-whitelisted files in `/tmp`.
-		if parameters.is_none() {
-			println!("No --mount parameters provided. The hypervisor will provide full host filesystem access to the kernel!");
-			return None;
-		}
-
-		for parameter in parameters.unwrap().iter() {
+		for parameter in parameters.iter() {
 			// fs::canonicalize resolves the absolute path. It also resolves symlinks,
 			// so we don't have to check for that edge case later on.
 			//
