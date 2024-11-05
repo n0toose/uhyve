@@ -2,6 +2,7 @@ use std::{
 	collections::HashMap,
 	ffi::{CString, OsString},
 	fs,
+	path::PathBuf,
 };
 
 /// HashMap matching a path in the guest OS (`CString`) a path in the host OS (`OsString`).
@@ -18,34 +19,19 @@ impl UhyveFileMap {
 	///
 	/// * `parameters` - A list of parameters with the format `./host_path.txt:guest.txt`
 	pub fn new(parameters: &[String]) -> Option<UhyveFileMap> {
-		// The CString is the guest path, the OsString is the host path.
-		let mut files: HashMap<CString, OsString> = HashMap::new();
-
-		// TODO: Introduce additional option for fully disabling filesystem access.
-		// TODO: Introduce additional option that allows storing non-whitelisted files in `/tmp`.
-		for parameter in parameters.iter() {
-			// fs::canonicalize resolves the absolute path. It also resolves symlinks,
-			// so we don't have to check for that edge case later on.
-			//
-			// Keep in mind that the order of host_path and guest_path has been swapped,
-			// in comparison to split_guest_and_host_path, so as to make key-value
-			// lookups possible. (See: `src/hypercall.rs`)
-			let (guest_path, host_path) = Self::split_guest_and_host_path(parameter);
-			let canonicalized_path = fs::canonicalize(&host_path);
-			match canonicalized_path {
-				Ok(p) => {
-					files.insert(guest_path, p.into_os_string());
-				}
-				Err(_e) => {
-					// If resolving the path is not possible (i.e. it does not exist),
-					// store it anyway. If the kernel opens this guest_path, this will
-					// create a new file in the host operating system.
-					files.insert(guest_path, host_path);
-				}
-			}
-		}
-
-		Some(UhyveFileMap { files })
+		Some(UhyveFileMap {
+			files: parameters
+				.iter()
+				.map(String::as_str)
+				.map(Self::split_guest_and_host_path)
+				.map(|(guest_path, host_path)| {
+					(
+						guest_path,
+						fs::canonicalize(&host_path).map_or(host_path, PathBuf::into_os_string),
+					)
+				})
+				.collect(),
+		})
 	}
 
 	/// Separates a string of the format "./host_dir/host_path.txt:guest_path.txt"
