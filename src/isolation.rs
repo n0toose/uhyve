@@ -1,15 +1,15 @@
-use std::{collections::HashMap, ffi::OsString, fs, path::PathBuf, str::FromStr, vec::Vec};
+use std::{collections::HashMap, ffi::OsString, fs};
 
 pub struct UhyveFileMap {
-	files: HashMap<OsString, PathBuf>,
+	files: HashMap<OsString, OsString>,
 }
 
 impl UhyveFileMap {
 	pub fn new(parameters: &[String]) -> Option<UhyveFileMap> {
-		// The first PathBuf corresponds to the guest path (our key),
+		// The first component corresponds to the guest path (our key),
 		// the second one to the host's.
-		let mut files: HashMap<OsString, PathBuf> = HashMap::new();
-		
+		let mut files: HashMap<OsString, OsString> = HashMap::new();
+
 		if parameters.is_empty() {
 			return None;
 		}
@@ -29,7 +29,7 @@ impl UhyveFileMap {
 			let canonicalized_path = fs::canonicalize(&host_path);
 			match canonicalized_path {
 				Ok(p) => {
-					files.insert(guest_path, p);
+					files.insert(guest_path, p.into_os_string());
 				}
 				Err(_e) => {
 					// If resolving the path is not possible,
@@ -42,16 +42,16 @@ impl UhyveFileMap {
 		return Some(UhyveFileMap { files });
 	}
 
-	fn split_host_and_guest_path(entry: &String) -> (OsString, PathBuf) {
+	fn split_host_and_guest_path(entry: &String) -> (OsString, OsString) {
 		let mut partsiter = entry.split(":");
 
 		let guest_path = OsString::from(partsiter.next().unwrap());
-		let host_path = PathBuf::from(partsiter.next().unwrap());
+		let host_path = OsString::from(partsiter.next().unwrap());
 
 		(guest_path, host_path)
 	}
 
-	pub fn get_paths(&self) -> &HashMap<OsString, PathBuf> {
+	pub fn get_paths(&self) -> &HashMap<OsString, OsString> {
 		&self.files
 	}
 }

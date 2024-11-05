@@ -56,7 +56,7 @@ struct Args {
 	gdb_port: Option<u16>,
 
 	/// Paths that the kernel should be able to view, read or write.
-	/// 
+	///
 	/// Files and directories are separated using commas.
 	/// Desired mount paths must be explicitly defined after a colon.
 	///

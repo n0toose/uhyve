@@ -1,13 +1,8 @@
 use std::{
-	borrow::Borrow,
-	ffi::{CStr, OsStr, OsString},
+	ffi::{CStr, CString, OsStr, OsString},
 	io::{self, Error, ErrorKind, Write},
-	os::unix::ffi::OsStrExt,
-	path::{Path, PathBuf},
-	str::{FromStr, Utf8Error},
+	os::unix::ffi::{OsStrExt, OsStringExt},
 };
-
-use std::ffi::CString;
 
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
 
@@ -91,14 +86,14 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams) {
 
 /// Handles an open syscall by opening a file on the host.
 pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveFileMap>) {
-	let mut path = mem.host_address(sysopen.name).unwrap() as *const i8;
+	let path = mem.host_address(sysopen.name).unwrap() as *const i8;
 
 	// If the file_map doesn't exist, the provided path will be used instead.
 	// (i.e. host filesystem access).
-	if !file_map.is_none() {
+	if file_map.is_some() {
 		// Rust deals in UTF-8. C doesn't provide such a guarantee.
 		// In that case, converting a CStr to str will return a Utf8Error.
-		// 
+		//
 		// FIXME: "The nul terminator must be within isize::MAX from ptr".
 		// Can this be guaranteed in Hermit itself?
 		//
@@ -112,32 +107,34 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 			let paths = file_map.as_ref().unwrap();
 			let host_path_option = paths
 				.get_paths()
-				.get_key_value(&OsString::from(guest_path.unwrap())
-			);
+				.get_key_value(&OsString::from(guest_path.unwrap()));
 
-			if !host_path_option.is_none() {
-				path = CString::new(
-					host_path_option
-					.unwrap()
-					.1
-					.as_os_str()
-					.as_encoded_bytes()
-				)
-				.unwrap()
-				.as_ptr();
+			if let Some(host_path_option) = host_path_option {
+				// This variable has to exist, as pointers don't have a lifetime
+				// and appending .as_ptr() would lead to the string getting
+				// immediately deallocated after the statement. Nothing is
+				// referencing it as far as the type system is concerned".
+				//
+				// This is also why this part is complicated and duplicated,
+				// otherwise we have a use-after-free.
+				let temp_c_str: CString =
+					CString::new(host_path_option.0.clone().into_vec()).unwrap();
+
+				let new_path = temp_c_str.as_c_str().as_ptr();
+
+				unsafe {
+					sysopen.ret = libc::open(new_path, sysopen.flags, sysopen.mode);
+				}
+				return;
 			} else {
 				sysopen.ret = -1;
 				return;
 			}
 		}
-	}
-
-	unsafe {
-		sysopen.ret = libc::open(
-			path, 
-			sysopen.flags, 
-			sysopen.mode
-		);
+	} else {
+		unsafe {
+			sysopen.ret = libc::open(path, sysopen.flags, sysopen.mode);
+		}
 	}
 }
 
