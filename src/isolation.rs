@@ -17,6 +17,8 @@ impl UhyveFileMap {
 	/// a HashMap that can match a path on the host operating system given a path on
 	/// the guest operating system.
 	///
+	/// See [crate::hypercall::open] to see this in practice.
+	///
 	/// * `parameters` - A list of parameters with the format `./host_path.txt:guest.txt`
 	pub fn new(parameters: &[String]) -> Option<UhyveFileMap> {
 		Some(UhyveFileMap {
@@ -47,6 +49,7 @@ impl UhyveFileMap {
 		let mut partsiter = parameter.split(":");
 
 		// Mind the order.
+		// TODO: Do this work using clap.
 		let host_path = OsString::from(partsiter.next().unwrap());
 		let guest_path = CString::new(partsiter.next().unwrap()).unwrap();
 
