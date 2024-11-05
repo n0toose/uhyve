@@ -107,10 +107,7 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 				.get_paths()
 				.get_key_value(&CString::new(guest_path).unwrap());
 
-			error!("guest_path (before if): {:#?}", guest_path);
-			error!("host_path_option (before if): {:#?}", host_path_option);
-
-			if let Some((guest_path, host_path)) = host_path_option {
+			if let Some((_guest_path, host_path)) = host_path_option {
 				// This variable has to exist, as pointers don't have a lifetime
 				// and appending .as_ptr() would lead to the string getting
 				// immediately deallocated after the statement. Nothing is
@@ -118,23 +115,24 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 				//
 				// This is also why this part is admittedly complicated
 				// and duplicated, otherwise we'd get a use-after-free.
-				let path_c_string = CString::new(host_path.as_bytes()).unwrap();
-				let new_host_path = path_c_string.as_c_str().as_ptr();
+				let host_path_c_string = CString::new(host_path.as_bytes()).unwrap();
+				let new_host_path = host_path_c_string.as_c_str().as_ptr();
 
 				unsafe {
 					sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
 				}
 			} else {
+				error!("The kernel requested to open() a non-whitelisted path. Rejecting...");
 				sysopen.ret = -1;
 			}
 		} else {
-			unsafe {
-				sysopen.ret = libc::open(requested_path, sysopen.flags, sysopen.mode);
-			}
+			error!("The kernel requested to open() a path that is not valid UTF-8. Rejecting...");
+			sysopen.ret = -1;
 		}
 	} else {
-		sysopen.ret = -1;
-		return;
+		unsafe {
+			sysopen.ret = libc::open(requested_path, sysopen.flags, sysopen.mode);
+		}
 	}
 }
 
