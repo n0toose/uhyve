@@ -154,7 +154,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		// TODO: Run fs::canonicalize once here, store "real" and "fake" paths in separate variables.
 		// https://docs.rs/itertools/latest/itertools/trait.Itertools.html#method.partition_map
 		// TODO: Move to isolation.rs
-		let file_map = UhyveFileMap::new(&params.mount);
+		let file_map = UhyveFileMap::new(&params.mount.as_deref());
 
 		let mut vm = Self {
 			offset: 0,

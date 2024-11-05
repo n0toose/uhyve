@@ -63,7 +63,7 @@ struct Args {
 	/// Example: --mount host_directory:/root/guest_directory,file.txt:/root/my_file.txt
 	#[arg(value_delimiter = ',')]
 	#[clap(long, env = "HERMIT_MOUNT")]
-	mount: Vec<String>,
+	mount: Option<Vec<String>>,
 
 	/// The kernel to execute
 	#[clap(value_parser)]

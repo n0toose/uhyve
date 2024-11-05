@@ -1,7 +1,7 @@
 use std::{
-	ffi::{CStr, CString, OsStr, OsString},
+	ffi::{CStr, CString, OsStr},
 	io::{self, Error, ErrorKind, Write},
-	os::unix::ffi::{OsStrExt, OsStringExt},
+	os::unix::ffi::OsStrExt,
 };
 
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
@@ -86,11 +86,12 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams) {
 
 /// Handles an open syscall by opening a file on the host.
 pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveFileMap>) {
-	let path = mem.host_address(sysopen.name).unwrap() as *const i8;
+	// TODO: Keep track of file descriptors.
+	let requested_path = mem.host_address(sysopen.name).unwrap() as *const i8;
 
 	// If the file_map doesn't exist, the provided path will be used instead.
 	// (i.e. host filesystem access).
-	if file_map.is_some() {
+	if let Some(file_map) = file_map {
 		// Rust deals in UTF-8. C doesn't provide such a guarantee.
 		// In that case, converting a CStr to str will return a Utf8Error.
 		//
@@ -98,35 +99,42 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 		// Can this be guaranteed in Hermit itself?
 		//
 		// See: https://nrc.github.io/big-book-ffi/reference/strings.html
-		let guest_path = unsafe { CStr::from_ptr(path) };
+		let guest_path = unsafe { CStr::from_ptr(requested_path) }.to_str();
 
-		let paths = file_map.as_ref().unwrap();
-		let host_path_option = paths.get_paths().get_key_value(guest_path);
+		if let Ok(guest_path) = guest_path {
+			let paths = file_map;
+			let host_path_option = paths
+				.get_paths()
+				.get_key_value(&CString::new(guest_path).unwrap());
 
-		if let Some(host_path_option) = host_path_option {
-			// This variable has to exist, as pointers don't have a lifetime
-			// and appending .as_ptr() would lead to the string getting
-			// immediately deallocated after the statement. Nothing is
-			// referencing it as far as the type system is concerned".
-			//
-			// This is also why this part is admittedly complicated
-			// and duplicated, otherwise we'd get a use-after-free.
-			//
-			// TODO: Remove clone().
-			let temp_c_str: CString = CString::new(host_path_option.1.clone().as_bytes()).unwrap();
+			error!("guest_path (before if): {:#?}", guest_path);
+			error!("host_path_option (before if): {:#?}", host_path_option);
 
-			let new_path = temp_c_str.as_c_str().as_ptr();
+			if let Some((guest_path, host_path)) = host_path_option {
+				// This variable has to exist, as pointers don't have a lifetime
+				// and appending .as_ptr() would lead to the string getting
+				// immediately deallocated after the statement. Nothing is
+				// referencing it as far as the type system is concerned".
+				//
+				// This is also why this part is admittedly complicated
+				// and duplicated, otherwise we'd get a use-after-free.
+				let path_c_string = CString::new(host_path.as_bytes()).unwrap();
+				let new_host_path = path_c_string.as_c_str().as_ptr();
 
-			unsafe {
-				sysopen.ret = libc::open(new_path, sysopen.flags, sysopen.mode);
+				unsafe {
+					sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
+				}
+			} else {
+				sysopen.ret = -1;
 			}
 		} else {
-			sysopen.ret = -1;
+			unsafe {
+				sysopen.ret = libc::open(requested_path, sysopen.flags, sysopen.mode);
+			}
 		}
 	} else {
-		unsafe {
-			sysopen.ret = libc::open(path, sysopen.flags, sysopen.mode);
-		}
+		sysopen.ret = -1;
+		return;
 	}
 }
 

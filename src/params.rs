@@ -37,7 +37,7 @@ pub struct Params {
 	pub kernel_args: Vec<String>,
 
 	/// Paths to whitelist
-	pub mount: Vec<String>,
+	pub mount: Option<Vec<String>>,
 }
 
 #[allow(clippy::derivable_impls)]
