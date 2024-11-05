@@ -98,38 +98,30 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 		// Can this be guaranteed in Hermit itself?
 		//
 		// See: https://nrc.github.io/big-book-ffi/reference/strings.html
-		let guest_path = unsafe { CStr::from_ptr(path) }.to_str();
+		let guest_path = unsafe { CStr::from_ptr(path) };
 
-		if guest_path.is_err() {
-			sysopen.ret = -1;
-			return;
-		} else {
-			let paths = file_map.as_ref().unwrap();
-			let host_path_option = paths
-				.get_paths()
-				.get_key_value(&OsString::from(guest_path.unwrap()));
+		let paths = file_map.as_ref().unwrap();
+		let host_path_option = paths.get_paths().get_key_value(guest_path);
 
-			if let Some(host_path_option) = host_path_option {
-				// This variable has to exist, as pointers don't have a lifetime
-				// and appending .as_ptr() would lead to the string getting
-				// immediately deallocated after the statement. Nothing is
-				// referencing it as far as the type system is concerned".
-				//
-				// This is also why this part is complicated and duplicated,
-				// otherwise we have a use-after-free.
-				let temp_c_str: CString =
-					CString::new(host_path_option.0.clone().into_vec()).unwrap();
+		if let Some(host_path_option) = host_path_option {
+			// This variable has to exist, as pointers don't have a lifetime
+			// and appending .as_ptr() would lead to the string getting
+			// immediately deallocated after the statement. Nothing is
+			// referencing it as far as the type system is concerned".
+			//
+			// This is also why this part is admittedly complicated
+			// and duplicated, otherwise we'd get a use-after-free.
+			//
+			// TODO: Remove clone().
+			let temp_c_str: CString = CString::new(host_path_option.1.clone().as_bytes()).unwrap();
 
-				let new_path = temp_c_str.as_c_str().as_ptr();
+			let new_path = temp_c_str.as_c_str().as_ptr();
 
-				unsafe {
-					sysopen.ret = libc::open(new_path, sysopen.flags, sysopen.mode);
-				}
-				return;
-			} else {
-				sysopen.ret = -1;
-				return;
+			unsafe {
+				sysopen.ret = libc::open(new_path, sysopen.flags, sysopen.mode);
 			}
+		} else {
+			sysopen.ret = -1;
 		}
 	} else {
 		unsafe {

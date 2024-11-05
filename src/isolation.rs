@@ -1,14 +1,19 @@
-use std::{collections::HashMap, ffi::OsString, fs};
+use std::{
+	collections::HashMap,
+	ffi::{CString, OsString},
+	fs,
+	os::unix::ffi::OsStrExt,
+};
 
 pub struct UhyveFileMap {
-	files: HashMap<OsString, OsString>,
+	files: HashMap<CString, OsString>,
 }
 
 impl UhyveFileMap {
 	pub fn new(parameters: &[String]) -> Option<UhyveFileMap> {
 		// The first component corresponds to the guest path (our key),
 		// the second one to the host's.
-		let mut files: HashMap<OsString, OsString> = HashMap::new();
+		let mut files: HashMap<CString, OsString> = HashMap::new();
 
 		if parameters.is_empty() {
 			return None;
@@ -42,16 +47,16 @@ impl UhyveFileMap {
 		return Some(UhyveFileMap { files });
 	}
 
-	fn split_host_and_guest_path(entry: &String) -> (OsString, OsString) {
+	fn split_host_and_guest_path(entry: &String) -> (CString, OsString) {
 		let mut partsiter = entry.split(":");
 
-		let guest_path = OsString::from(partsiter.next().unwrap());
+		let guest_path = CString::new(partsiter.next().unwrap()).unwrap();
 		let host_path = OsString::from(partsiter.next().unwrap());
 
 		(guest_path, host_path)
 	}
 
-	pub fn get_paths(&self) -> &HashMap<OsString, OsString> {
+	pub fn get_paths(&self) -> &HashMap<CString, OsString> {
 		&self.files
 	}
 }
