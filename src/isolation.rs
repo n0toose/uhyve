@@ -1,19 +1,14 @@
-use std::{
-	collections::HashMap,
-	ffi::{CString, OsString},
-	fs,
-	path::PathBuf,
-};
+use std::{collections::HashMap, ffi::OsString, fs, path::PathBuf};
 
-/// HashMap matching a path in the guest OS (`CString`) a path in the host OS (`OsString`).
+/// HashMap matching a path in the guest OS ([String]) a path in the host OS ([OsString]).
 pub struct UhyveFileMap {
-	files: HashMap<CString, OsString>,
+	files: HashMap<String, OsString>,
 }
 
 impl UhyveFileMap {
 	/// Creates a UhyveFileMap.
 	///
-	/// Using a list of parameters stored in a Vec<String>, this function creates
+	/// Using a list of parameters stored in a [Vec<String>], this function creates
 	/// a HashMap that can match a path on the host operating system given a path on
 	/// the guest operating system.
 	///
@@ -37,7 +32,7 @@ impl UhyveFileMap {
 	}
 
 	/// Separates a string of the format "./host_dir/host_path.txt:guest_path.txt"
-	/// into a guest_path (CString) and host_path (OsString) respectively.
+	/// into a guest_path (String) and host_path (OsString) respectively.
 	///
 	/// Keep in mind that the order of the parameters is the inverse of the one
 	/// in the actual HashMap itself, as we want to use the guest_path as a key
@@ -45,22 +40,22 @@ impl UhyveFileMap {
 	/// interface reminiscent of other VMMs like Docker's.
 	///
 	/// `parameter` - A parameter of the format `./host_path.txt:guest.txt`.
-	fn split_guest_and_host_path(parameter: &str) -> (CString, OsString) {
+	fn split_guest_and_host_path(parameter: &str) -> (String, OsString) {
 		let mut partsiter = parameter.split(":");
 
 		// Mind the order.
 		// TODO: Do this work using clap.
 		let host_path = OsString::from(partsiter.next().unwrap());
-		let guest_path = CString::new(partsiter.next().unwrap()).unwrap();
+		let guest_path = partsiter.next().unwrap().to_owned();
 
 		(guest_path, host_path)
 	}
 
 	/// Returns a reference to the stored HashMap.
 	///
-	/// This function is commonly used with get_key_value, using a CString
-	/// (that is read from a `const char*` in an `open()` call) as a key.
-	pub fn get_paths(&self) -> &HashMap<CString, OsString> {
+	/// This function is commonly used with get_key_value, using a String
+	/// (that is read from a const char* in an `open()` call) as a key.
+	pub fn get_paths(&self) -> &HashMap<String, OsString> {
 		&self.files
 	}
 }
