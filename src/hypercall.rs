@@ -86,7 +86,7 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams) {
 
 /// Handles an open syscall by opening a file on the host.
 pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveFileMap>) {
-	// TODO: Keep track of file descriptors.
+	// TODO: We could keep track of the file descriptors internally, in case the kernel doesn't close them.
 	let requested_path = mem.host_address(sysopen.name).unwrap() as *const i8;
 
 	// If the file_map doesn't exist, the provided path will be used instead.
@@ -94,9 +94,6 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 	if let Some(file_map) = file_map {
 		// Rust deals in UTF-8. C doesn't provide such a guarantee.
 		// In that case, converting a CStr to str will return a Utf8Error.
-		//
-		// FIXME: "The nul terminator must be within isize::MAX from ptr".
-		// Can this be guaranteed in Hermit itself?
 		//
 		// See: https://nrc.github.io/big-book-ffi/reference/strings.html
 		let guest_path = unsafe { CStr::from_ptr(requested_path) }.to_str();
@@ -113,8 +110,8 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 				// immediately deallocated after the statement. Nothing is
 				// referencing it as far as the type system is concerned".
 				//
-				// This is also why this part is admittedly complicated
-				// and duplicated, otherwise we'd get a use-after-free.
+				// This is also why we can't just have one unsafe block and
+				// one path variable, otherwise we'll get a use after free.
 				let host_path_c_string = CString::new(host_path.as_bytes()).unwrap();
 				let new_host_path = host_path_c_string.as_c_str().as_ptr();
 

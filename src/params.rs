@@ -36,7 +36,7 @@ pub struct Params {
 	/// Arguments to forward to the kernel
 	pub kernel_args: Vec<String>,
 
-	/// Paths to whitelist
+	/// Paths that should be mounted on-device.
 	pub mount: Option<Vec<String>>,
 }
 
