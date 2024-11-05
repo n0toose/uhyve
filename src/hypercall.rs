@@ -118,11 +118,11 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 				}
 			} else {
 				error!("The kernel requested to open() a non-whitelisted path. Rejecting...");
-				sysopen.ret = -1;
+				sysopen.ret = -1
 			}
 		} else {
 			error!("The kernel requested to open() a path that is not valid UTF-8. Rejecting...");
-			sysopen.ret = -1;
+			sysopen.ret = -1
 		}
 	} else {
 		unsafe {
