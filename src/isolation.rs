@@ -56,3 +56,46 @@ impl UhyveFileMap {
 		self.files.get(guest_path)
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_split_guest_and_host_path() {
+		let host_guest_strings = vec![
+			"./host_string.txt:guest_string.txt",
+			"/home/user/host_string.txt:guest_string.md.txt",
+			":guest_string.conf",
+			":",
+			"exists.txt:also_exists.txt:should_not_exist.txt",
+		];
+
+		// Mind the inverted order.
+		let results = vec![
+			(
+				String::from("guest_string.txt"),
+				OsString::from("./host_string.txt"),
+			),
+			(
+				String::from("guest_string.md.txt"),
+				OsString::from("/home/user/host_string.txt"),
+			),
+			(String::from("guest_string.conf"), OsString::from("")),
+			(String::from(""), OsString::from("")),
+			(
+				String::from("also_exists.txt"),
+				OsString::from("exists.txt"),
+			),
+		];
+
+		for (i, host_and_guest_string) in host_guest_strings
+			.into_iter()
+			.map(UhyveFileMap::split_guest_and_host_path)
+			.enumerate()
+		{
+			assert_eq!(host_and_guest_string.0, results[i].0);
+			assert_eq!(host_and_guest_string.1, results[i].1);
+		}
+	}
+}
