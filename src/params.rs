@@ -36,8 +36,8 @@ pub struct Params {
 	/// Arguments to forward to the kernel
 	pub kernel_args: Vec<String>,
 
-	/// Paths that should be mounted on-device.
-	pub mount: Option<Vec<String>>,
+	/// Paths that should be mounted on-device
+	pub file_map: Option<Vec<String>>,
 }
 
 #[allow(clippy::derivable_impls)]
@@ -54,7 +54,7 @@ impl Default for Params {
 			pit: false,
 			cpu_count: Default::default(),
 			gdb_port: Default::default(),
-			mount: Default::default(),
+			file_map: Default::default(),
 			kernel_args: Default::default(),
 		}
 	}
