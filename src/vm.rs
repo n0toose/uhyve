@@ -119,7 +119,7 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	pub virtio_device: Arc<Mutex<VirtioNetPciDevice>>,
 	#[allow(dead_code)] // gdb is not supported on macos
 	pub(super) gdb_port: Option<u16>,
-	pub file_map: Option<UhyveFileMap>,
+	pub(crate) file_map: Option<UhyveFileMap>,
 	_vcpu_type: PhantomData<VCpuType>,
 }
 impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
