@@ -34,11 +34,6 @@ impl UhyveFileMap {
 	/// Separates a string of the format "./host_dir/host_path.txt:guest_path.txt"
 	/// into a guest_path (String) and host_path (OsString) respectively.
 	///
-	/// Keep in mind that the order of the parameters is the inverse of the one
-	/// in the actual HashMap itself, as we want to use the guest_path as a key
-	/// to look up the respective host_path, as well as provide an intuitive
-	/// interface reminiscent of other VMMs like Docker's.
-	///
 	/// `parameter` - A parameter of the format `./host_path.txt:guest.txt`.
 	fn split_guest_and_host_path(parameter: &str) -> (String, OsString) {
 		let mut partsiter = parameter.split(":");
