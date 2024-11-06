@@ -46,12 +46,14 @@ impl UhyveFileMap {
 		(guest_path, host_path)
 	}
 
-	/// Returns a reference to the stored HashMap.
+	/// Returns the host_path on the host filesystem given a requested guest_path, if it exists.
 	///
-	/// This function is commonly used with get_key_value, using a String
-	/// (that is read from a const char* in an `open()` call) as a key.
-	pub fn get_paths(&self) -> &HashMap<String, OsString> {
-		&self.files
+	/// This function will look up the requested file in the UhyveFileMap and return
+	/// the corresponding path.
+	/// 
+	/// `guest_path` - The guest path. The file that the kernel is trying to open.
+	pub fn get_host_path(&self, guest_path: &str) -> Option<&OsString> {
+		self.files.get(guest_path)
 	}
 }
 

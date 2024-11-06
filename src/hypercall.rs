@@ -99,7 +99,7 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 
 		if let Ok(guest_path) = guest_path {
 			let paths = file_map;
-			let host_path_option = paths.get_paths().get(guest_path);
+			let host_path_option = paths.get_host_path(guest_path);
 
 			if let Some(host_path) = host_path_option {
 				// This variable has to exist, as pointers don't have a lifetime
