@@ -1,18 +1,18 @@
 use std::{collections::HashMap, ffi::OsString, fs, path::PathBuf};
 
 /// HashMap matching a path in the guest OS ([String]) a path in the host OS ([OsString]).
+///
+/// Using a list of parameters stored in a [Vec<String>], this function creates
+/// a HashMap that can match a path on the host operating system given a path on
+/// the guest operating system.
+///
+/// See [crate::hypercall::open] to see this in practice.
 pub struct UhyveFileMap {
 	files: HashMap<String, OsString>,
 }
 
 impl UhyveFileMap {
 	/// Creates a UhyveFileMap.
-	///
-	/// Using a list of parameters stored in a [Vec<String>], this function creates
-	/// a HashMap that can match a path on the host operating system given a path on
-	/// the guest operating system.
-	///
-	/// See [crate::hypercall::open] to see this in practice.
 	///
 	/// * `parameters` - A list of parameters with the format `./host_path.txt:guest.txt`
 	pub fn new(parameters: &[String]) -> Option<UhyveFileMap> {
