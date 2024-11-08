@@ -98,4 +98,74 @@ mod tests {
 			assert_eq!(host_and_guest_string.1, results[i].1);
 		}
 	}
+
+	#[test]
+	fn test_uhyvefilemap() {
+		// This entire section makes the test robust-ish enough, regardless of where
+		// it is being run from. This presumes that the CARGO_MANIFEST_DIR is set
+		// and absolute.
+		//
+		// Example: /home/user/uhyve
+		let mut fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+		// Our files are in `$CARGO_MANIFEST_DIR/data/fixtures/fs`.
+		//
+		// If this is not true, this test will fail early so as to not confuse
+		// the unlucky Uhyve developer.
+		fixture_path.push("data/fixtures/fs");
+		assert!(fixture_path.is_dir());
+		let path_prefix = fixture_path.to_str().unwrap().to_owned();
+
+		// These are the desired host paths that we want the kernel to supposely use.
+		//
+		// The last case is a special case, the file's corresponding parameter
+		// uses a symlink, which should be successfully resolved first.
+		let map_results = [
+			path_prefix.clone() + "/README.md",
+			path_prefix.clone() + "/this_folder_exists",
+			path_prefix.clone() + "/this_symlink_exists",
+			path_prefix.clone() + "/this_symlink_is_dangling",
+			path_prefix.clone() + "/this_file_does_not_exist",
+			path_prefix.clone() + "/this_folder_exists/file_in_folder.txt",
+		];
+
+		// Each parameter has the format of host_path:guest_path
+		let map_parameters = [
+			map_results[0].clone() + ":readme_file.md",
+			map_results[1].clone() + ":guest_folder",
+			map_results[2].clone() + ":guest_symlink",
+			map_results[3].clone() + ":guest_dangling_symlink",
+			map_results[4].clone() + ":guest_file",
+			path_prefix.clone() + "/this_symlink_leads_to_a_file" + ":guest_file_symlink",
+		];
+
+		let map = UhyveFileMap::new(&map_parameters).unwrap();
+
+		assert_eq!(
+			map.get_host_path("readme_file.md").unwrap(),
+			&OsString::from(&map_results[0])
+		);
+		assert_eq!(
+			map.get_host_path("guest_folder").unwrap(),
+			&OsString::from(&map_results[1])
+		);
+		assert_eq!(
+			map.get_host_path("guest_symlink").unwrap(),
+			&OsString::from(&map_results[2])
+		);
+		assert_eq!(
+			map.get_host_path("guest_dangling_symlink").unwrap(),
+			&OsString::from(&map_results[3])
+		);
+		assert_eq!(
+			map.get_host_path("guest_file").unwrap(),
+			&OsString::from(&map_results[4])
+		);
+		assert_eq!(
+			map.get_host_path("guest_file_symlink").unwrap(),
+			&OsString::from(&map_results[5])
+		);
+
+		assert!(map.get_host_path("this_file_is_not_mapped").is_none());
+	}
 }
