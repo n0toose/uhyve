@@ -102,8 +102,7 @@ mod tests {
 			.map(UhyveFileMap::split_guest_and_host_path)
 			.enumerate()
 		{
-			assert_eq!(host_and_guest_string.0, results[i].0);
-			assert_eq!(host_and_guest_string.1, results[i].1);
+			assert_eq!(host_and_guest_string, results[i]);
 		}
 	}
 
