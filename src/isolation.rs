@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ffi::OsString, fs, path::PathBuf};
+use std::{collections::HashMap, ffi::OsString, fmt, fs, path::PathBuf};
 
 /// HashMap matching a path in the guest OS ([String]) a path in the host OS ([OsString]).
 ///
@@ -54,6 +54,14 @@ impl UhyveFileMap {
 	/// `guest_path` - The guest path. The file that the kernel is trying to open.
 	pub fn get_host_path(&self, guest_path: &str) -> Option<&OsString> {
 		self.files.get(guest_path)
+	}
+}
+
+impl fmt::Debug for UhyveFileMap {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("UhyveFileMap")
+			.field("files", &self.files)
+			.finish()
 	}
 }
 
