@@ -1,24 +1,16 @@
 mod common;
 
-use std::{
-	fs::{read, remove_file},
-	path::PathBuf,
-};
+use std::{fs::remove_file, path::PathBuf};
 
-use common::{build_hermit_bin, run_simple_vm};
+use common::{build_hermit_bin, remove_file_if_exists, run_simple_vm, verify_file_contents};
 
 #[test]
 fn new_file_test() {
 	let testfile = PathBuf::from("foo.txt");
-	if testfile.exists() {
-		println!("Removing existing file {}", testfile.display());
-		remove_file(&testfile).unwrap_or_else(|_| panic!("Can't remove {}", testfile.display()));
-	}
+	remove_file_if_exists(&testfile);
 	let bin_path = build_hermit_bin("create_file");
-	run_simple_vm(bin_path);
 
-	assert!(testfile.exists());
-	let file_content = read("foo.txt").unwrap();
-	assert_eq!(file_content, "Hello, world!".as_bytes());
+	assert_eq!(0, run_simple_vm(bin_path));
+	verify_file_contents(&testfile, true);
 	remove_file(&testfile).unwrap_or_else(|_| panic!("Can't remove {}", testfile.display()));
 }
