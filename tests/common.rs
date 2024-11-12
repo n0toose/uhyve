@@ -69,7 +69,7 @@ pub fn run_vm_with_file_map(kernel_path: PathBuf, file_map: Vec<String>) -> i32 
 			.unwrap()
 			.try_into()
 			.unwrap(),
-		file_map: Some(file_map),
+		mount: Some(file_map),
 		..Default::default()
 	};
 

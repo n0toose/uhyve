@@ -57,13 +57,11 @@ struct Args {
 
 	/// Paths that the kernel should be able to view, read or write.
 	///
-	/// Files and directories are separated using commas.
 	/// Desired mount paths must be explicitly defined after a colon.
 	///
-	/// Example: --file_map host_directory:/root/guest_directory,file.txt:/root/my_file.txt
-	#[arg(value_delimiter = ',')]
-	#[clap(long, env = "HERMIT_FILE_MAP")]
-	file_map: Option<Vec<String>>,
+	/// Example: --mount host_dir:guest_dir --mount file.txt:guest_file.txt
+	#[clap(long)]
+	mount: Option<Vec<String>>,
 
 	/// The kernel to execute
 	#[clap(value_parser)]
@@ -253,7 +251,7 @@ impl From<Args> for Params {
 				},
 			#[cfg(target_os = "linux")]
 			gdb_port,
-			file_map,
+			mount,
 			kernel: _,
 			kernel_args,
 		} = args;
@@ -267,7 +265,7 @@ impl From<Args> for Params {
 			cpu_count,
 			#[cfg(target_os = "linux")]
 			pit,
-			file_map,
+			mount,
 			#[cfg(target_os = "linux")]
 			gdb_port,
 			#[cfg(target_os = "macos")]
