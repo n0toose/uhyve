@@ -2,8 +2,11 @@ use std::{
 	ffi::{CStr, CString, OsStr},
 	io::{self, Error, ErrorKind, Write},
 	os::unix::ffi::OsStrExt,
+	sync::Arc,
 };
 
+use std::ffi::OsString;
+use tempfile::TempDir;
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
 
 use crate::{
@@ -85,19 +88,23 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams) {
 }
 
 /// Handles an open syscall by opening a file on the host.
-pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveFileMap>) {
+pub fn open(
+	mem: &MmapMemory,
+	sysopen: &mut OpenParams,
+	file_map: &Option<UhyveFileMap>,
+	temp_dir: &Option<Arc<TempDir>>,
+) {
 	// TODO: We could keep track of the file descriptors internally, in case the kernel doesn't close them.
 	let requested_path = mem.host_address(sysopen.name).unwrap() as *const i8;
+	let guest_path = unsafe { CStr::from_ptr(requested_path) }.to_str();
 
-	// If the file map doesn't exist, full host filesystem access will be provided.
-	if let Some(file_map) = file_map {
-		// Rust deals in UTF-8. C doesn't provide such a guarantee.
-		// In that case, converting a CStr to str will return a Utf8Error.
-		//
-		// See: https://nrc.github.io/big-book-ffi/reference/strings.html
-		let guest_path = unsafe { CStr::from_ptr(requested_path) }.to_str();
-
-		if let Ok(guest_path) = guest_path {
+	if let Ok(guest_path) = guest_path {
+		// If the file map doesn't exist, full host filesystem access will be provided.
+		if let Some(file_map) = file_map {
+			// Rust deals in UTF-8. C doesn't provide such a guarantee.
+			// In that case, converting a CStr to str will return a Utf8Error.
+			//
+			// See: https://nrc.github.io/big-book-ffi/reference/strings.html
 			let host_path_option = file_map.get_host_path(guest_path);
 			if let Some(host_path) = host_path_option {
 				// This variable has to exist, as pointers don't have a lifetime
@@ -118,13 +125,25 @@ pub fn open(mem: &MmapMemory, sysopen: &mut OpenParams, file_map: &Option<UhyveF
 				sysopen.ret = -1;
 			}
 		} else {
-			error!("The kernel requested to open() a path that is not valid UTF-8. Rejecting...");
-			sysopen.ret = -1;
+			if temp_dir.is_some() {
+				let mut host_path = temp_dir.as_ref().unwrap().path().to_path_buf();
+				host_path.push(guest_path);
+
+				let host_path_c_string = CString::new(host_path.as_os_str().as_bytes()).unwrap();
+				let new_host_path = host_path_c_string.as_c_str().as_ptr();
+				error!("{:?}", host_path_c_string);
+
+				unsafe {
+					sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
+				}
+			} else {
+				error!("The kernel attempted to open() a file, but Uhyve has no temporary directory available or a file map. Rejecting...");
+				sysopen.ret = -1;
+			}
 		}
 	} else {
-		unsafe {
-			sysopen.ret = libc::open(requested_path, sysopen.flags, sysopen.mode);
-		}
+		error!("The kernel requested to open() a path that is not valid UTF-8. Rejecting...");
+		sysopen.ret = -1;
 	}
 }
 

@@ -1,5 +1,9 @@
 use std::{
-	env, fmt, fs, io,
+	borrow::Borrow,
+	env, fmt, fs,
+	fs::File,
+	io,
+	io::Write,
 	marker::PhantomData,
 	num::NonZeroU32,
 	path::PathBuf,
@@ -14,6 +18,7 @@ use hermit_entry::{
 };
 use log::{error, warn};
 use sysinfo::System;
+use tempfile::TempDir;
 use thiserror::Error;
 
 #[cfg(target_arch = "x86_64")]
@@ -120,6 +125,7 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	#[allow(dead_code)] // gdb is not supported on macos
 	pub(super) gdb_port: Option<u16>,
 	pub(crate) mount: Option<UhyveFileMap>,
+	pub(crate) tempdir: Option<Arc<TempDir>>,
 	_vcpu_type: PhantomData<VCpuType>,
 }
 impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
@@ -151,6 +157,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			"gdbstub is only supported with one CPU"
 		);
 
+		let tempdir = TempDir::new().map(Arc::new).ok();
 		let mount = params.mount.as_deref().and_then(UhyveFileMap::new);
 
 		let mut vm = Self {
@@ -166,6 +173,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			virtio_device,
 			gdb_port: params.gdb_port,
 			mount,
+			tempdir,
 			_vcpu_type: PhantomData,
 		};
 

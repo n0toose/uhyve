@@ -422,6 +422,7 @@ impl VirtualCPU for KvmCpu {
 									&self.parent_vm.mem,
 									sysopen,
 									&self.parent_vm.mount,
+									&self.parent_vm.tempdir,
 								),
 								Hypercall::FileRead(sysread) => {
 									hypercall::read(&self.parent_vm.mem, sysread)
