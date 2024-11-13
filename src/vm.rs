@@ -1,9 +1,5 @@
 use std::{
-	borrow::Borrow,
-	env, fmt, fs,
-	fs::File,
-	io,
-	io::Write,
+	env, fmt, fs, io,
 	marker::PhantomData,
 	num::NonZeroU32,
 	path::PathBuf,
@@ -124,7 +120,7 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	pub virtio_device: Arc<Mutex<VirtioNetPciDevice>>,
 	#[allow(dead_code)] // gdb is not supported on macos
 	pub(super) gdb_port: Option<u16>,
-	pub(crate) mount: Option<UhyveFileMap>,
+	pub(crate) mount: UhyveFileMap,
 	pub(crate) tempdir: Option<Arc<TempDir>>,
 	_vcpu_type: PhantomData<VCpuType>,
 }
@@ -158,7 +154,10 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		);
 
 		let tempdir = TempDir::new().map(Arc::new).ok();
-		let mount = params.mount.as_deref().and_then(UhyveFileMap::new);
+		let mount = UhyveFileMap::new(&params.mount);
+
+		debug!("Temporary directory: {:#?}", tempdir);
+		debug!("UhyveFileMap: {:#?}", mount);
 
 		let mut vm = Self {
 			offset: 0,

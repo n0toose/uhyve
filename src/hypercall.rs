@@ -5,7 +5,6 @@ use std::{
 	sync::Arc,
 };
 
-use std::ffi::OsString;
 use tempfile::TempDir;
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
 
@@ -91,7 +90,7 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams) {
 pub fn open(
 	mem: &MmapMemory,
 	sysopen: &mut OpenParams,
-	file_map: &Option<UhyveFileMap>,
+	file_map: &UhyveFileMap,
 	temp_dir: &Option<Arc<TempDir>>,
 ) {
 	// TODO: We could keep track of the file descriptors internally, in case the kernel doesn't close them.
@@ -99,46 +98,44 @@ pub fn open(
 	let guest_path = unsafe { CStr::from_ptr(requested_path) }.to_str();
 
 	if let Ok(guest_path) = guest_path {
-		// If the file map doesn't exist, full host filesystem access will be provided.
-		if let Some(file_map) = file_map {
-			// Rust deals in UTF-8. C doesn't provide such a guarantee.
-			// In that case, converting a CStr to str will return a Utf8Error.
+		// Rust deals in UTF-8. C doesn't provide such a guarantee.
+		// In that case, converting a CStr to str will return a Utf8Error.
+		//
+		// See: https://nrc.github.io/big-book-ffi/reference/strings.html
+		let host_path_option = file_map.get_host_path(guest_path);
+		if let Some(host_path) = host_path_option {
+			// This variable has to exist, as pointers don't have a lifetime
+			// and appending .as_ptr() would lead to the string getting
+			// immediately deallocated after the statement. Nothing is
+			// referencing it as far as the type system is concerned".
 			//
-			// See: https://nrc.github.io/big-book-ffi/reference/strings.html
-			let host_path_option = file_map.get_host_path(guest_path);
-			if let Some(host_path) = host_path_option {
-				// This variable has to exist, as pointers don't have a lifetime
-				// and appending .as_ptr() would lead to the string getting
-				// immediately deallocated after the statement. Nothing is
-				// referencing it as far as the type system is concerned".
-				//
-				// This is also why we can't just have one unsafe block and
-				// one path variable, otherwise we'll get a use after free.
-				let host_path_c_string = CString::new(host_path.as_bytes()).unwrap();
-				let new_host_path = host_path_c_string.as_c_str().as_ptr();
+			// This is also why we can't just have one unsafe block and
+			// one path variable, otherwise we'll get a use after free.
+			let host_path_c_string = CString::new(host_path.as_bytes()).unwrap();
+			let new_host_path = host_path_c_string.as_c_str().as_ptr();
 
-				unsafe {
-					sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
-				}
-			} else {
-				error!("The kernel requested to open() a non-whitelisted path. Rejecting...");
-				sysopen.ret = -1;
+			unsafe {
+				sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
 			}
 		} else {
-			if temp_dir.is_some() {
-				let mut host_path = temp_dir.as_ref().unwrap().path().to_path_buf();
-				host_path.push(guest_path);
+			// TODO: What if writing into that temporary directory is still impossible?
+			// TODO: Do the CString conversions in a separate function.
+			// TODO: If O_CREAT or O_TMPFILE, create a new file and add it to the UhyveFileMap.
+			{
+				warn!("Attempting to open a temp file for {:#?}...", guest_path);
+				if let Some(temp_dir) = temp_dir {
+					let host_path = temp_dir.path().join(guest_path);
+					let host_path_c_string =
+						CString::new(host_path.as_os_str().as_bytes()).unwrap();
+					let new_host_path = host_path_c_string.as_c_str().as_ptr();
 
-				let host_path_c_string = CString::new(host_path.as_os_str().as_bytes()).unwrap();
-				let new_host_path = host_path_c_string.as_c_str().as_ptr();
-				error!("{:?}", host_path_c_string);
-
-				unsafe {
-					sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
+					unsafe {
+						sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
+					}
+				} else {
+					error!("No temporary directory is available. Rejecting...");
+					sysopen.ret = -1;
 				}
-			} else {
-				error!("The kernel attempted to open() a file, but Uhyve has no temporary directory available or a file map. Rejecting...");
-				sysopen.ret = -1;
 			}
 		}
 	} else {

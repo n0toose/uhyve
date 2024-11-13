@@ -15,20 +15,26 @@ impl UhyveFileMap {
 	/// Creates a UhyveFileMap.
 	///
 	/// * `parameters` - A list of parameters with the format `./host_path.txt:guest.txt`
-	pub fn new(parameters: &[String]) -> Option<UhyveFileMap> {
-		Some(UhyveFileMap {
-			files: parameters
-				.iter()
-				.map(String::as_str)
-				.map(Self::split_guest_and_host_path)
-				.map(|(guest_path, host_path)| {
-					(
-						guest_path,
-						fs::canonicalize(&host_path).map_or(host_path, PathBuf::into_os_string),
-					)
-				})
-				.collect(),
-		})
+	pub fn new(parameters: &Option<Vec<String>>) -> UhyveFileMap {
+		if let Some(parameters) = parameters {
+			UhyveFileMap {
+				files: parameters
+					.iter()
+					.map(String::as_str)
+					.map(Self::split_guest_and_host_path)
+					.map(|(guest_path, host_path)| {
+						(
+							guest_path,
+							fs::canonicalize(&host_path).map_or(host_path, PathBuf::into_os_string),
+						)
+					})
+					.collect(),
+			}
+		} else {
+			UhyveFileMap {
+				files: Default::default(),
+			}
+		}
 	}
 
 	/// Separates a string of the format "./host_dir/host_path.txt:guest_path.txt"
@@ -127,7 +133,7 @@ mod tests {
 		//
 		// The last case is a special case, the file's corresponding parameter
 		// uses a symlink, which should be successfully resolved first.
-		let map_results = [
+		let map_results = vec![
 			path_prefix.clone() + "/README.md",
 			path_prefix.clone() + "/this_folder_exists",
 			path_prefix.clone() + "/this_symlink_exists",
@@ -137,16 +143,16 @@ mod tests {
 		];
 
 		// Each parameter has the format of host_path:guest_path
-		let map_parameters = [
+		let map_parameters = Some(vec![
 			map_results[0].clone() + ":readme_file.md",
 			map_results[1].clone() + ":guest_folder",
 			map_results[2].clone() + ":guest_symlink",
 			map_results[3].clone() + ":guest_dangling_symlink",
 			map_results[4].clone() + ":guest_file",
 			path_prefix.clone() + "/this_symlink_leads_to_a_file" + ":guest_file_symlink",
-		];
+		]);
 
-		let map = UhyveFileMap::new(&map_parameters).unwrap();
+		let map = UhyveFileMap::new(&map_parameters);
 
 		assert_eq!(
 			map.get_host_path("readme_file.md").unwrap(),
