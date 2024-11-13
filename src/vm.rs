@@ -153,11 +153,9 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 			"gdbstub is only supported with one CPU"
 		);
 
-		let tempdir = TempDir::new().map(Arc::new).ok();
+		// TODO: Allow custom locations to be used instead of `/tmp`.
+		let tempdir = create_temp_dir().map(Arc::new);
 		let mount = UhyveFileMap::new(&params.mount);
-
-		debug!("Temporary directory: {:#?}", tempdir);
-		debug!("UhyveFileMap: {:#?}", mount);
 
 		let mut vm = Self {
 			offset: 0,

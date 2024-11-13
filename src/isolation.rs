@@ -1,4 +1,14 @@
-use std::{collections::HashMap, ffi::OsString, fmt, fs, path::PathBuf};
+use std::{
+	collections::HashMap,
+	ffi::{CString, OsString},
+	fmt, fs,
+	fs::Permissions,
+	os::unix::fs::PermissionsExt,
+	path::PathBuf,
+};
+
+use tempfile::{Builder, TempDir};
+use uuid::Uuid;
 
 /// HashMap matching a path in the guest OS ([String]) a path in the host OS ([OsString]).
 ///
@@ -9,6 +19,30 @@ use std::{collections::HashMap, ffi::OsString, fmt, fs, path::PathBuf};
 /// See [crate::hypercall::open] to see this in practice.
 pub struct UhyveFileMap {
 	files: HashMap<String, OsString>,
+}
+
+/// Creates a temporary directory. This is currently being done in a separate
+/// function to allow for more granular OS-specific approaches later on.
+#[cfg(target_family = "unix")]
+pub fn create_temp_dir() -> Option<TempDir> {
+	// See: https://github.com/Stebalien/tempfile/issues/303
+	// Uuid::new_v4() relies on getrandom, should be secure-ish enough?
+	// 600: r+w for user only, no execute
+	let dir = Builder::new()
+		.permissions(Permissions::from_mode(0o600))
+		.prefix(&Uuid::new_v4().to_string())
+		.tempdir()
+		.ok();
+
+	dir
+}
+
+#[cfg(target_family = "unix")]
+pub fn get_temp_file_path(temp_dir: &TempDir, guest_path: &str) -> CString {
+	use std::os::unix::ffi::OsStrExt;
+
+	let host_path = temp_dir.path().join(guest_path);
+	CString::new(host_path.as_os_str().as_bytes()).unwrap()
 }
 
 impl UhyveFileMap {

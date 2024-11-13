@@ -10,7 +10,7 @@ use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress,
 
 use crate::{
 	consts::BOOT_PML4,
-	isolation::UhyveFileMap,
+	isolation::{get_temp_file_path, UhyveFileMap},
 	mem::{MemoryError, MmapMemory},
 	virt_to_phys,
 };
@@ -121,12 +121,13 @@ pub fn open(
 			// TODO: What if writing into that temporary directory is still impossible?
 			// TODO: Do the CString conversions in a separate function.
 			// TODO: If O_CREAT or O_TMPFILE, create a new file and add it to the UhyveFileMap.
+			warn!("Attempting to open a temp file for {:#?}...", guest_path);
 			{
-				warn!("Attempting to open a temp file for {:#?}...", guest_path);
+				#[cfg(not(target_os = "linux"))]
+				warn!("This is only supported on Linux! Attempting to continue...");
+
 				if let Some(temp_dir) = temp_dir {
-					let host_path = temp_dir.path().join(guest_path);
-					let host_path_c_string =
-						CString::new(host_path.as_os_str().as_bytes()).unwrap();
+					let host_path_c_string = get_temp_file_path(temp_dir, guest_path);
 					let new_host_path = host_path_c_string.as_c_str().as_ptr();
 
 					unsafe {
