@@ -5,6 +5,7 @@ use std::{
 	sync::Arc,
 };
 
+use libc::{O_CREAT, O_DIRECTORY, O_EXCL, O_NOCTTY, O_NOFOLLOW};
 use tempfile::TempDir;
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
 
@@ -93,9 +94,17 @@ pub fn open(
 	file_map: &mut UhyveFileMap,
 	temp_dir: &Option<Arc<TempDir>>,
 ) {
-	// TODO: We could keep track of the file descriptors internally, in case the kernel doesn't close them.
+	// TODO: Keep track of file descriptors internally, just in case the kernel doesn't close them.
 	let requested_path = mem.host_address(sysopen.name).unwrap() as *const i8;
 	let guest_path = unsafe { CStr::from_ptr(requested_path) }.to_str();
+
+	// We "hijack" the OpenParams of a guest by disabling functionalities that are both
+	// unsupported by the Hermit kernel guest and could cause unpredictable behavior.
+	// TODO: Remove all flags unsupported by Hermit using bitmask operations.
+	//
+	// See: https://owasp.org/www-community/vulnerabilities/Insecure_Temporary_File
+	// See: https://man7.org/linux/man-pages/man2/open.2.html
+	sysopen.flags = sysopen.flags | O_NOCTTY | O_NOFOLLOW;
 
 	if let Ok(guest_path) = guest_path {
 		// Rust deals in UTF-8. C doesn't provide such a guarantee.
@@ -118,13 +127,19 @@ pub fn open(
 				sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
 			}
 		} else {
-			// TODO: What if writing into that temporary directory is still impossible?
-			// TODO: Do the CString conversions in a separate function.
-			// TODO: If O_CREAT or O_TMPFILE, create a new file and add it to the UhyveFileMap.
 			warn!("Attempting to open a temp file for {:#?}...", guest_path);
-			{
-				#[cfg(not(target_os = "linux"))]
-				warn!("This is only supported on Linux! Attempting to continue...");
+			// O_TMPFILE = 0o20000000 | O_DIRECTORY. O_TMPFILE is unsupported in Hermit,
+			// would cause undefined behavior on Uhyve running Linux, and also doesn't
+			// exist on macOS, so we reject the value using this complicated expression.
+			//
+			// O_DIRECTORY & O_CREAT emulates the kernel's expected behavior.
+			// See: https://github.com/hermit-os/kernel/commit/71bc629
+			// See: https://lwn.net/Articles/926782/
+			if sysopen.flags & ((O_DIRECTORY & O_CREAT) | (0o20000000 | O_DIRECTORY)) == 0 {
+				// Existing files that already exist should be in the file map, not here.
+				// If a supposed attacker can predict where we open a file and its filename,
+				// this contigency, together with O_CREAT, will cause the write to fail.
+				sysopen.flags |= O_EXCL;
 
 				if let Some(temp_dir) = temp_dir {
 					let host_path = temp_dir.path().join(guest_path);
@@ -140,6 +155,8 @@ pub fn open(
 					error!("No temporary directory is available. Rejecting...");
 					sysopen.ret = -1;
 				}
+			} else {
+				panic!("The kernel requested to open() a file with unsupported flags!");
 			}
 		}
 	} else {
