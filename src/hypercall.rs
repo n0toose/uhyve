@@ -10,7 +10,7 @@ use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress,
 
 use crate::{
 	consts::BOOT_PML4,
-	isolation::{get_temp_file_path, UhyveFileMap},
+	isolation::UhyveFileMap,
 	mem::{MemoryError, MmapMemory},
 	virt_to_phys,
 };
@@ -90,7 +90,7 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams) {
 pub fn open(
 	mem: &MmapMemory,
 	sysopen: &mut OpenParams,
-	file_map: &UhyveFileMap,
+	file_map: &mut UhyveFileMap,
 	temp_dir: &Option<Arc<TempDir>>,
 ) {
 	// TODO: We could keep track of the file descriptors internally, in case the kernel doesn't close them.
@@ -127,7 +127,10 @@ pub fn open(
 				warn!("This is only supported on Linux! Attempting to continue...");
 
 				if let Some(temp_dir) = temp_dir {
-					let host_path_c_string = get_temp_file_path(temp_dir, guest_path);
+					let host_path = temp_dir.path().join(guest_path);
+					let host_path_c_string = file_map
+						.append_file_and_return_cstring(guest_path, host_path.into_os_string());
+
 					let new_host_path = host_path_c_string.as_c_str().as_ptr();
 
 					unsafe {

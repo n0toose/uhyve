@@ -120,7 +120,7 @@ pub struct UhyveVm<VCpuType: VirtualCPU = VcpuDefault> {
 	pub virtio_device: Arc<Mutex<VirtioNetPciDevice>>,
 	#[allow(dead_code)] // gdb is not supported on macos
 	pub(super) gdb_port: Option<u16>,
-	pub(crate) mount: UhyveFileMap,
+	pub(crate) mount: Arc<Mutex<UhyveFileMap>>,
 	pub(crate) tempdir: Option<Arc<TempDir>>,
 	_vcpu_type: PhantomData<VCpuType>,
 }
@@ -155,7 +155,9 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 
 		// TODO: Allow custom locations to be used instead of `/tmp`.
 		let tempdir = create_temp_dir().map(Arc::new);
-		let mount = UhyveFileMap::new(&params.mount);
+		// Arc<Mutex<UhyveFileMap>> is used with async in mind, Arc<UhyveFileMap> also can't be borrowed as mutable.
+		// See: https://doc.rust-lang.org/error_codes/E0596.html
+		let mount = Arc::new(Mutex::new(UhyveFileMap::new(&params.mount)));
 
 		let mut vm = Self {
 			offset: 0,
