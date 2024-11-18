@@ -5,12 +5,11 @@ use std::{
 	sync::Arc,
 };
 
-use libc::{O_CREAT, O_DIRECTORY, O_EXCL, O_NOCTTY, O_NOFOLLOW};
 use tempfile::TempDir;
 use uhyve_interface::{parameters::*, GuestPhysAddr, Hypercall, HypercallAddress, MAX_ARGC_ENVC};
 
 use crate::{
-	consts::BOOT_PML4,
+	consts::{ALLOWED_OPEN_FLAGS, BOOT_PML4, O_CREAT, O_DIRECTORY, O_EXCL},
 	isolation::UhyveFileMap,
 	mem::{MemoryError, MmapMemory},
 	virt_to_phys,
@@ -97,14 +96,7 @@ pub fn open(
 	// TODO: Keep track of file descriptors internally, just in case the kernel doesn't close them.
 	let requested_path = mem.host_address(sysopen.name).unwrap() as *const i8;
 	let guest_path = unsafe { CStr::from_ptr(requested_path) }.to_str();
-
-	// We "hijack" the OpenParams of a guest by disabling functionalities that are both
-	// unsupported by the Hermit kernel guest and could cause unpredictable behavior.
-	// TODO: Remove all flags unsupported by Hermit using bitmask operations.
-	//
-	// See: https://owasp.org/www-community/vulnerabilities/Insecure_Temporary_File
-	// See: https://man7.org/linux/man-pages/man2/open.2.html
-	sysopen.flags = sysopen.flags | O_NOCTTY | O_NOFOLLOW;
+	let mut flags = sysopen.flags & ALLOWED_OPEN_FLAGS;
 
 	if let Ok(guest_path) = guest_path {
 		// Rust deals in UTF-8. C doesn't provide such a guarantee.
@@ -124,39 +116,36 @@ pub fn open(
 			let new_host_path = host_path_c_string.as_c_str().as_ptr();
 
 			unsafe {
-				sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
+				sysopen.ret = libc::open(new_host_path, flags, sysopen.mode);
 			}
 		} else {
 			warn!("Attempting to open a temp file for {:#?}...", guest_path);
-			// O_TMPFILE = 0o20000000 | O_DIRECTORY. O_TMPFILE is unsupported in Hermit,
-			// would cause undefined behavior on Uhyve running Linux, and also doesn't
-			// exist on macOS, so we reject the value using this complicated expression.
-			//
-			// O_DIRECTORY & O_CREAT emulates the kernel's expected behavior.
-			// See: https://github.com/hermit-os/kernel/commit/71bc629
+
 			// See: https://lwn.net/Articles/926782/
-			if sysopen.flags & ((O_DIRECTORY & O_CREAT) | (0o20000000 | O_DIRECTORY)) == 0 {
+			// See: https://github.com/hermit-os/kernel/commit/71bc629
+			if (flags & (O_DIRECTORY | O_CREAT)) == (O_DIRECTORY | O_CREAT) {
+				error!("An open() call used O_DIRECTORY and O_CREAT at the same time. Aborting...");
+				sysopen.ret = 1
+			}
+
+			if let Some(temp_dir) = temp_dir {
 				// Existing files that already exist should be in the file map, not here.
 				// If a supposed attacker can predict where we open a file and its filename,
 				// this contigency, together with O_CREAT, will cause the write to fail.
-				sysopen.flags |= O_EXCL;
+				flags |= O_EXCL;
 
-				if let Some(temp_dir) = temp_dir {
-					let host_path = temp_dir.path().join(guest_path);
-					let host_path_c_string = file_map
-						.append_file_and_return_cstring(guest_path, host_path.into_os_string());
+				let host_path = temp_dir.path().join(guest_path);
+				let host_path_c_string =
+					file_map.append_file_and_return_cstring(guest_path, host_path.into_os_string());
 
-					let new_host_path = host_path_c_string.as_c_str().as_ptr();
+				let new_host_path = host_path_c_string.as_c_str().as_ptr();
 
-					unsafe {
-						sysopen.ret = libc::open(new_host_path, sysopen.flags, sysopen.mode);
-					}
-				} else {
-					error!("No temporary directory is available. Rejecting...");
-					sysopen.ret = -1;
+				unsafe {
+					sysopen.ret = libc::open(new_host_path, flags, sysopen.mode);
 				}
 			} else {
-				panic!("The kernel requested to open() a file with unsupported flags!");
+				error!("No temporary directory is available. Rejecting...");
+				sysopen.ret = -1;
 			}
 		}
 	} else {
