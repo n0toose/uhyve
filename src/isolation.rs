@@ -10,17 +10,6 @@ use std::{
 use tempfile::{Builder, TempDir};
 use uuid::Uuid;
 
-/// HashMap matching a path in the guest OS ([String]) a path in the host OS ([OsString]).
-///
-/// Using a list of parameters stored in a [Vec<String>], this function creates
-/// a HashMap that can match a path on the host operating system given a path on
-/// the guest operating system.
-///
-/// See [crate::hypercall::open] to see this in practice.
-pub struct UhyveFileMap {
-	files: HashMap<String, OsString>,
-}
-
 /// Creates a temporary directory. This is currently being done in a separate
 /// function because of the complexity level and to allow for more granular
 /// OS-specific approaches later on.
@@ -67,6 +56,17 @@ pub fn create_temp_dir(tempdir: Option<PathBuf>, test: bool) -> Option<TempDir> 
 			.tempdir()
 			.ok()
 	}
+}
+
+/// HashMap matching a path in the guest OS ([String]) a path in the host OS ([OsString]).
+///
+/// Using a list of parameters stored in a [Vec<String>], this function creates
+/// a HashMap that can match a path on the host operating system given a path on
+/// the guest operating system.
+///
+/// See [crate::hypercall::open] to see this in practice.
+pub struct UhyveFileMap {
+	files: HashMap<String, OsString>,
 }
 
 impl UhyveFileMap {
