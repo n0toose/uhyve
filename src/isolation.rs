@@ -146,7 +146,27 @@ impl fmt::Debug for UhyveFileMap {
 
 #[cfg(test)]
 mod tests {
+	use std::panic;
+
 	use super::*;
+
+	#[test]
+	fn test_create_temp_dir() {
+		// test is never true, as its correctness is tested in fs-test and by upstream
+		// other types of runtime weirdness should be checked using assertions
+		let mut temp_dir = create_temp_dir(None, false).unwrap();
+		assert!(temp_dir.path().exists());
+		temp_dir = create_temp_dir(Some(PathBuf::from("/tmp")), false).unwrap();
+		assert!(temp_dir.path().exists());
+
+		// This suppresses the panic.
+		// See: https://doc.rust-lang.org/std/panic/fn.set_hook.html
+		panic::set_hook(Box::new(|_| {}));
+		let result = panic::catch_unwind(|| {
+			create_temp_dir(Some(PathBuf::from("/this/should/not/exist")), false)
+		});
+		assert!(result.is_err());
+	}
 
 	#[test]
 	fn test_split_guest_and_host_path() {
