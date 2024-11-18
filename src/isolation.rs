@@ -218,7 +218,7 @@ mod tests {
 		//
 		// If this is not true, this test will fail early so as to not confuse
 		// the unlucky Uhyve developer.
-		fixture_path.push("data/fixtures/fs");
+		fixture_path.push("tests/data/fixtures/fs");
 		assert!(fixture_path.is_dir());
 		let path_prefix = fixture_path.to_str().unwrap().to_owned();
 
