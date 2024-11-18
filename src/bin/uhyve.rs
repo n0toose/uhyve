@@ -48,20 +48,15 @@ struct Args {
 	#[clap(flatten, next_help_heading = "CPU")]
 	cpu_args: CpuArgs,
 
+	#[clap(flatten, next_help_heading = "ISOLATION")]
+	isolation_args: IsolationArgs,
+
 	/// GDB server port
 	///
 	/// Starts a GDB server on the provided port and waits for a connection.
 	#[clap(short = 's', long, env = "HERMIT_GDB_PORT")]
 	#[cfg(target_os = "linux")]
 	gdb_port: Option<u16>,
-
-	/// Paths that the kernel should be able to view, read or write.
-	///
-	/// Desired mount paths must be explicitly defined after a colon.
-	///
-	/// Example: --mount host_dir:guest_dir --mount file.txt:guest_file.txt
-	#[clap(long)]
-	mount: Option<Vec<String>>,
 
 	/// The kernel to execute
 	#[clap(value_parser)]
@@ -230,6 +225,29 @@ impl CpuArgs {
 	}
 }
 
+#[derive(Parser, Debug, Clone)]
+struct IsolationArgs {
+	/// Paths that the kernel should be able to view, read or write.
+	///
+	/// Desired mount paths must be explicitly defined after a colon.
+	///
+	/// Example: --mount host_dir:guest_dir --mount file.txt:guest_file.txt
+	#[clap(long)]
+	mount: Option<Vec<String>>,
+
+	/// Choose a custom directory for the sandbox.
+	///
+	/// Useful for testing or if /tmp does not work well enough for you.
+	#[clap(long)]
+	tempdir: Option<PathBuf>,
+
+	/// Create a deterministic temporary directory for testing.
+	///
+	/// DO NOT USE! For testing purposes only!
+	#[clap(long, hide = true, requires("tempdir"))]
+	tempdir_test: bool,
+}
+
 impl From<Args> for Params {
 	fn from(args: Args) -> Self {
 		let Args {
@@ -249,9 +267,13 @@ impl From<Args> for Params {
 					pit,
 					affinity: _,
 				},
+			isolation_args: IsolationArgs {
+				mount,
+				tempdir,
+				tempdir_test,
+			},
 			#[cfg(target_os = "linux")]
 			gdb_port,
-			mount,
 			kernel: _,
 			kernel_args,
 		} = args;
@@ -266,6 +288,8 @@ impl From<Args> for Params {
 			#[cfg(target_os = "linux")]
 			pit,
 			mount,
+			tempdir,
+			tempdir_test,
 			#[cfg(target_os = "linux")]
 			gdb_port,
 			#[cfg(target_os = "macos")]

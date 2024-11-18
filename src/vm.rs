@@ -154,7 +154,7 @@ impl<VCpuType: VirtualCPU> UhyveVm<VCpuType> {
 		);
 
 		// TODO: Allow custom locations to be used instead of `/tmp`.
-		let tempdir = create_temp_dir().map(Arc::new);
+		let tempdir = create_temp_dir(params.tempdir, params.tempdir_test).map(Arc::new);
 		// Arc<Mutex<UhyveFileMap>> is used with async in mind, Arc<UhyveFileMap> also can't be borrowed as mutable.
 		// See: https://doc.rust-lang.org/error_codes/E0596.html
 		let mount = Mutex::new(UhyveFileMap::new(&params.mount));
@@ -316,6 +316,8 @@ impl<VCpuType: VirtualCPU> fmt::Debug for UhyveVm<VCpuType> {
 			.field("boot_info", &self.boot_info)
 			.field("verbose", &self.verbose)
 			.field("virtio_device", &self.virtio_device)
+			.field("mount", &self.mount)
+			.field("tempdir", &self.tempdir)
 			.finish()
 	}
 }

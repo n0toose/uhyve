@@ -1,6 +1,6 @@
 use std::{
 	env,
-	fs::{read, remove_file},
+	fs::{read, remove_dir_all},
 	path::{Path, PathBuf},
 	process::Command,
 };
@@ -76,13 +76,35 @@ pub fn run_vm_with_file_map(kernel_path: PathBuf, file_map: Vec<String>) -> i32 
 	UhyveVm::new(kernel_path, params).unwrap().run(None)
 }
 
-/// Creates a file on the host OS, while attempting to remove the the file if
-/// it already exists.
+/// Small wrapper around [`UhyveVm::new`] that also accepts a custom temporary directory
+/// so as to override the default "/tmp" option.
+///
+/// `kernel_path` - Location of the kernel
+/// `tempdir` - Location of the temporary directory
 #[allow(dead_code)]
-pub fn remove_file_if_exists(path: &PathBuf) {
+pub fn run_vm_with_tempdir(kernel_path: PathBuf, tempdir: PathBuf) -> i32 {
+	let params = Params {
+		verbose: true,
+		cpu_count: 2.try_into().unwrap(),
+		memory_size: Byte::from_u64_with_unit(32, Unit::MiB)
+			.unwrap()
+			.try_into()
+			.unwrap(),
+		tempdir: Some(tempdir),
+		tempdir_test: true,
+		..Default::default()
+	};
+
+	UhyveVm::new(kernel_path, params).unwrap().run(None)
+}
+
+/// Removes a path if it already exists on the host OS.
+#[allow(dead_code)]
+pub fn remove_path_if_exists(path: &PathBuf) {
 	if path.exists() {
-		println!("Removing existing file {}", path.display());
-		remove_file(path).unwrap_or_else(|_| panic!("Can't remove {}", path.display()));
+		println!("Removing existing directory {}", path.display());
+		// Also removes files.
+		remove_dir_all(path).unwrap_or_else(|_| panic!("Can't remove {}", path.display()));
 	}
 }
 

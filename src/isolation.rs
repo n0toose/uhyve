@@ -22,21 +22,51 @@ pub struct UhyveFileMap {
 }
 
 /// Creates a temporary directory. This is currently being done in a separate
-/// function to allow for more granular OS-specific approaches later on.
-#[cfg(target_family = "unix")]
-pub fn create_temp_dir() -> Option<TempDir> {
-	// See: https://github.com/Stebalien/tempfile/issues/303
-	// Uuid::new_v4() relies on getrandom, should be secure-ish enough?
-	// TODO: Why does 700 work, but 600 doesn't?
-	let dir = Builder::new()
-		.permissions(Permissions::from_mode(0o700))
-		.prefix(&Uuid::new_v4().to_string())
-		.tempdir()
-		.ok();
+/// function because of the complexity level and to allow for more granular
+/// OS-specific approaches later on.
+///
+/// * `tempdir` - Custom temporary directory.
+/// * `test` - Creates a test folder with the prefix "testprefix". Files will be retained.
+pub fn create_temp_dir(tempdir: Option<PathBuf>, test: bool) -> Option<TempDir> {
+	// TODO: Move this into a separate function
+	if test {
+		return Builder::new()
+			.permissions(Permissions::from_mode(0o700))
+			.prefix("testprefix")
+			.rand_bytes(0)
+			.keep(true)
+			.tempdir_in(tempdir.unwrap())
+			.ok();
+	}
 
-	debug!("Result of create_temp_dir(): {:#?}", dir);
+	if let Some(tempdir) = tempdir {
+		let tempdir_path = PathBuf::from(&tempdir);
 
-	dir
+		match &tempdir_path.metadata() {
+			Ok(metadata) => {
+				// If the path exists, ensure that we can actually use it.
+				assert!(metadata.is_dir() && !metadata.permissions().readonly());
+
+				Builder::new()
+					.permissions(Permissions::from_mode(0o700))
+					.prefix(&Uuid::new_v4().to_string())
+					.tempdir_in(tempdir_path)
+					.ok()
+			}
+			Err(e) => {
+				panic!(
+					"The directory {:#?} does not exist or cannot be accessed: {}",
+					tempdir_path, e
+				);
+			}
+		}
+	} else {
+		Builder::new()
+			.permissions(Permissions::from_mode(0o700))
+			.prefix(&Uuid::new_v4().to_string())
+			.tempdir()
+			.ok()
+	}
 }
 
 impl UhyveFileMap {
