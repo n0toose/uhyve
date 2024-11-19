@@ -1,7 +1,6 @@
 use std::{
 	fmt,
 	num::{NonZeroU32, ParseIntError, TryFromIntError},
-	path::PathBuf,
 	str::FromStr,
 };
 
@@ -34,12 +33,6 @@ pub struct Params {
 	/// Paths that should be mounted on-device
 	pub mount: Option<Vec<String>>,
 
-	/// Custom temporary directory for opened files
-	pub tempdir: Option<PathBuf>,
-
-	/// Internal variable for testing temporary directories.
-	pub tempdir_test: bool,
-
 	/// GDB server port
 	pub gdb_port: Option<u16>,
 
@@ -61,8 +54,6 @@ impl Default for Params {
 			pit: false,
 			cpu_count: Default::default(),
 			mount: Default::default(),
-			tempdir: Default::default(),
-			tempdir_test: false,
 			gdb_port: Default::default(),
 			kernel_args: Default::default(),
 		}

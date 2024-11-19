@@ -2,7 +2,6 @@ use std::{
 	ffi::{CStr, CString, OsStr},
 	io::{self, Error, ErrorKind, Write},
 	os::unix::ffi::OsStrExt,
-	sync::Arc,
 };
 
 use tempfile::TempDir;
@@ -91,7 +90,7 @@ pub fn open(
 	mem: &MmapMemory,
 	sysopen: &mut OpenParams,
 	file_map: &mut UhyveFileMap,
-	temp_dir: &Option<Arc<TempDir>>,
+	temp_dir: &TempDir,
 ) {
 	// TODO: Keep track of file descriptors internally, just in case the kernel doesn't close them.
 	let requested_path = mem.host_address(sysopen.name).unwrap() as *const i8;
@@ -128,24 +127,19 @@ pub fn open(
 				sysopen.ret = 1
 			}
 
-			if let Some(temp_dir) = temp_dir {
-				// Existing files that already exist should be in the file map, not here.
-				// If a supposed attacker can predict where we open a file and its filename,
-				// this contigency, together with O_CREAT, will cause the write to fail.
-				flags |= O_EXCL;
+			// Existing files that already exist should be in the file map, not here.
+			// If a supposed attacker can predict where we open a file and its filename,
+			// this contigency, together with O_CREAT, will cause the write to fail.
+			flags |= O_EXCL;
 
-				let host_path = temp_dir.path().join(guest_path);
-				let host_path_c_string =
-					file_map.append_file_and_return_cstring(guest_path, host_path.into_os_string());
+			let host_path = temp_dir.path().join(guest_path);
+			let host_path_c_string =
+				file_map.append_file_and_return_cstring(guest_path, host_path.into_os_string());
 
-				let new_host_path = host_path_c_string.as_c_str().as_ptr();
+			let new_host_path = host_path_c_string.as_c_str().as_ptr();
 
-				unsafe {
-					sysopen.ret = libc::open(new_host_path, flags, sysopen.mode);
-				}
-			} else {
-				error!("No temporary directory is available. Rejecting...");
-				sysopen.ret = -1;
+			unsafe {
+				sysopen.ret = libc::open(new_host_path, flags, sysopen.mode);
 			}
 		}
 	} else {

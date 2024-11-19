@@ -234,18 +234,6 @@ struct IsolationArgs {
 	/// Example: --mount host_dir:guest_dir --mount file.txt:guest_file.txt
 	#[clap(long)]
 	mount: Option<Vec<String>>,
-
-	/// Choose a custom directory for the sandbox.
-	///
-	/// Useful for testing or if /tmp does not work well enough for you.
-	#[clap(long)]
-	tempdir: Option<PathBuf>,
-
-	/// Create a deterministic temporary directory for testing.
-	///
-	/// DO NOT USE! For testing purposes only!
-	#[clap(long, hide = true, requires("tempdir"))]
-	tempdir_test: bool,
 }
 
 impl From<Args> for Params {
@@ -267,11 +255,7 @@ impl From<Args> for Params {
 					pit,
 					affinity: _,
 				},
-			isolation_args: IsolationArgs {
-				mount,
-				tempdir,
-				tempdir_test,
-			},
+			isolation_args: IsolationArgs { mount },
 			#[cfg(target_os = "linux")]
 			gdb_port,
 			kernel: _,
@@ -288,8 +272,6 @@ impl From<Args> for Params {
 			#[cfg(target_os = "linux")]
 			pit,
 			mount,
-			tempdir,
-			tempdir_test,
 			#[cfg(target_os = "linux")]
 			gdb_port,
 			#[cfg(target_os = "macos")]

@@ -1,8 +1,8 @@
 use std::{
 	collections::HashMap,
 	ffi::{CString, OsString},
-	fmt, fs,
-	fs::Permissions,
+	fmt,
+	fs::{self, Permissions},
 	os::unix::{ffi::OsStrExt, fs::PermissionsExt},
 	path::PathBuf,
 };
@@ -10,52 +10,22 @@ use std::{
 use tempfile::{Builder, TempDir};
 use uuid::Uuid;
 
-/// Creates a temporary directory. This is currently being done in a separate
-/// function because of the complexity level and to allow for more granular
-/// OS-specific approaches later on.
-///
-/// * `tempdir` - Custom temporary directory.
-/// * `test` - Creates a test folder with the prefix "testprefix". Files will be retained.
-pub fn create_temp_dir(tempdir: Option<PathBuf>, test: bool) -> Option<TempDir> {
-	// TODO: Move this into a separate function
-	if test {
-		return Builder::new()
-			.permissions(Permissions::from_mode(0o700))
-			.prefix("testprefix")
-			.rand_bytes(0)
-			.keep(true)
-			.tempdir_in(tempdir.unwrap())
-			.ok();
-	}
+/// Creates a temporary directory.
+pub fn create_temp_dir() -> TempDir {
+	// TODO: Remove keep(true).
+	let dir = Builder::new()
+		.permissions(Permissions::from_mode(0o700))
+		.prefix(&Uuid::new_v4().to_string())
+		.keep(true)
+		.suffix("-uhyve")
+		.tempdir()
+		.ok()
+		.unwrap_or_else(|| panic!("The temporary directory could not be created."));
 
-	if let Some(tempdir) = tempdir {
-		let tempdir_path = PathBuf::from(&tempdir);
+	let dir_permissions = dir.path().metadata().unwrap().permissions();
+	assert!(!dir_permissions.readonly());
 
-		match &tempdir_path.metadata() {
-			Ok(metadata) => {
-				// If the path exists, ensure that we can actually use it.
-				assert!(metadata.is_dir() && !metadata.permissions().readonly());
-
-				Builder::new()
-					.permissions(Permissions::from_mode(0o700))
-					.prefix(&Uuid::new_v4().to_string())
-					.tempdir_in(tempdir_path)
-					.ok()
-			}
-			Err(e) => {
-				panic!(
-					"The directory {:#?} does not exist or cannot be accessed: {}",
-					tempdir_path, e
-				);
-			}
-		}
-	} else {
-		Builder::new()
-			.permissions(Permissions::from_mode(0o700))
-			.prefix(&Uuid::new_v4().to_string())
-			.tempdir()
-			.ok()
-	}
+	dir
 }
 
 /// HashMap matching a path in the guest OS ([String]) a path in the host OS ([OsString]).
@@ -146,27 +116,7 @@ impl fmt::Debug for UhyveFileMap {
 
 #[cfg(test)]
 mod tests {
-	use std::panic;
-
 	use super::*;
-
-	#[test]
-	fn test_create_temp_dir() {
-		// test is never true, as its correctness is tested in fs-test and by upstream
-		// other types of runtime weirdness should be checked using assertions
-		let mut temp_dir = create_temp_dir(None, false).unwrap();
-		assert!(temp_dir.path().exists());
-		temp_dir = create_temp_dir(Some(PathBuf::from("/tmp")), false).unwrap();
-		assert!(temp_dir.path().exists());
-
-		// This suppresses the panic.
-		// See: https://doc.rust-lang.org/std/panic/fn.set_hook.html
-		panic::set_hook(Box::new(|_| {}));
-		let result = panic::catch_unwind(|| {
-			create_temp_dir(Some(PathBuf::from("/this/should/not/exist")), false)
-		});
-		assert!(result.is_err());
-	}
 
 	#[test]
 	fn test_split_guest_and_host_path() {
