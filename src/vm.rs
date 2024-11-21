@@ -333,7 +333,6 @@ impl<VirtBackend: VirtualizationBackend> UhyveVm<VirtBackend> {
 			.unwrap()
 			.kernel_args(&self.args()[..sep])
 			.app_args(self.args().get(sep + 1..).unwrap_or_default())
-			.envs(env::vars())
 			.finish()
 			.unwrap();
 
