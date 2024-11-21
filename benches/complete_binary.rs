@@ -10,7 +10,7 @@ use std::{
 use criterion::{criterion_group, Criterion};
 
 // based on https://stackoverflow.com/questions/35045996/check-if-a-command-is-in-path-executable-as-process#35046243
-fn is_program_in_path(program: &str) -> bool {
+pub fn is_program_in_path(program: &str) -> bool {
 	if let Ok(path) = env::var("PATH") {
 		for p in path.split(':') {
 			let p_str = format!("{p}/{program}");

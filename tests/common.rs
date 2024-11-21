@@ -11,6 +11,7 @@ use uhyvelib::{
 	vm::{UhyveVm, VmResult},
 };
 
+
 /// Uses Cargo to build a kernel in the `tests/test-kernels` directory.
 /// Returns a path to the build binary.
 pub fn build_hermit_bin(kernel: impl AsRef<Path>) -> PathBuf {

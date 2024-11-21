@@ -1,5 +1,5 @@
 [workspace]
-exclude = ["tests/test-kernels", "hermit-rs", "hermit-rs/*", "kernel"]
+exclude = ["tests/test-kernels", "benches/bench-kernels", "hermit-rs", "hermit-rs/*", "kernel"]
 
 [package]
 name = "uhyve"
