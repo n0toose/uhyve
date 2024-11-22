@@ -1,5 +1,5 @@
 use std::{
-	env, fmt,
+	fmt,
 	fs::{self, File, OpenOptions},
 	io::{self, Write},
 	num::NonZeroU32,
@@ -60,7 +60,7 @@ pub fn detect_freq_from_sysinfo() -> std::result::Result<u32, FrequencyDetection
 	if !system.cpus().iter().all(|cpu| cpu.frequency() == frequency) {
 		// Even if the CPU frequencies are not all equal, the
 		// frequency of the "first" CPU is treated as "authoritative".
-		eprintln!("CPU frequencies are not all equal");
+		info!("CPU frequencies are not all equal");
 	}
 
 	if frequency > 0 {
