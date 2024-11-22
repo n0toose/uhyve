@@ -2,7 +2,7 @@ extern crate criterion;
 extern crate uhyvelib;
 
 use std::{
-	env, f64::MIN, fs, io::Write, path::{Path, PathBuf}, process::{Command, Stdio}
+	array, env, f64::MIN, fs, io::Write, path::{Path, PathBuf}, process::{Command, Stdio}
 };
 
 use criterion::{criterion_group, Criterion};
@@ -65,15 +65,11 @@ pub fn run_open_test(c: &mut Criterion) {
 	
 	use uhyvelib::mem::MmapMemory;
 	use uhyvelib::MIN_PHYSMEM_SIZE;
-	use uhyve_interface::GuestPhysAddr;
+	use uhyve_interface::{GuestPhysAddr, GuestVirtAddr};
 	use uhyvelib::initialize_pagetables;
 	use std::ffi::{OsString, CString};
 	use std::os::unix::ffi::OsStrExt;
 	use log::error;
-
-	let names: Vec<CString> = (0..100)
-    	.map(|i| CString::new(OsString::from("/tmp/".to_owned() + i.to_string().as_str() + ".txt").as_bytes()).unwrap())
-    	.collect();
 
 	let mut mem: MmapMemory = MmapMemory::new(
 		0,
@@ -82,14 +78,11 @@ pub fn run_open_test(c: &mut Criterion) {
 		false,
 		true
 	);
-
 	// First MIN_PHYSMEM_SIZE is allocated, mem is presumed to be zero.
-	initialize_pagetables(unsafe { mem.as_slice_mut() }.try_into().unwrap());
+	let mem_slice_mut = unsafe { mem.as_slice_mut() };
+	initialize_pagetables(mem_slice_mut.try_into().unwrap());
 
-	let name = names[0].as_bytes_with_nul().to_vec();
-	let name_converted_back = CString::from_vec_with_nul(name.clone()).unwrap();
-	error!("{:#?}", name_converted_back);
-
+	/*
 	unsafe {
 		mem.as_slice_mut()[MIN_PHYSMEM_SIZE + 0x00] = name[0];
 		mem.as_slice_mut()[MIN_PHYSMEM_SIZE + 0x01] = name[1];
@@ -102,18 +95,47 @@ pub fn run_open_test(c: &mut Criterion) {
 		mem.as_slice_mut()[MIN_PHYSMEM_SIZE + 0x08] = name[8];
 		mem.as_slice_mut()[MIN_PHYSMEM_SIZE + 0x09] = name[9];
 		mem.as_slice_mut()[MIN_PHYSMEM_SIZE + 0x0a] = name[10];
-	}
+	}*/
 
-	let mut slice = unsafe{mem.as_slice_mut()}.to_vec();
-	for i in 0..slice.len() {
-		if (slice[i] == name[0] && slice[i+1] == name[1]) {
-			panic!("it works! {}, {}", i, i+1);
+	const ARRAY_LEN: usize = 100;
+	const NAME_LEN: usize = 13;
+	// Example: "/tmp/012.txt"
+	let names: Vec<CString> = (0..ARRAY_LEN)
+		.map(|i| {
+			let string: String = format!("{}{}{}", "/tmp/", format!("{:0>3}", i), ".txt");
+			CString::new(string.as_bytes()).unwrap()
+		}).collect();
+	assert_eq!(names[0].as_bytes_with_nul().len(), NAME_LEN);
+	assert_eq!(names.len(), ARRAY_LEN);
+
+	// Making things nicer for the debugger.
+	// TODO: Use .as_chunks() to split &[u8] into &[u8; NAME_LEN] once it turns stable.
+	let offset = MIN_PHYSMEM_SIZE;
+	for i in 0..ARRAY_LEN {
+		let name = names[i].as_bytes_with_nul();
+		for j in 0..NAME_LEN {
+			mem_slice_mut[offset + i*NAME_LEN + j] = name[j];
 		}
 	}
-	println!("test");
-	println!("test");
-	println!("test");
-	println!("test");
+
+	if false {
+		let mut slice = mem_slice_mut.to_vec();
+		for i in 0..slice.len() {
+			if (slice[i] == 0x2f && slice[i+1] == 0x74) {
+				panic!("it works! {}, {}", i, i+1);
+			}
+		}
+	}
+
+	uhyvelib::hypercall::open(&mem, &mut OpenParams {
+		name: GuestPhysAddr::new(MIN_PHYSMEM_SIZE as u64 + 13),
+		mode: 0x777,
+		flags: 0o100 | 0o2,
+		ret: 0,
+	});
+
+	panic!("Yay!")
+
 	/*
 	let firstopenparam: &mut OpenParams = &mut OpenParams {
 		name: GuestPhysAddr::new(unsafe { mem.host_address.add((MIN_PHYSMEM_SIZE as u8) as usize)} as u64),
@@ -123,7 +145,8 @@ pub fn run_open_test(c: &mut Criterion) {
 	};
 	uhyvelib::hypercall::open(&mem, firstopenparam);
 	let retcode = firstopenparam.ret;
-*/
+	*/
+
 	/*
 	let first_openparam = unsafe {any_as_u8_slice(openparams_vec.into_iter().next().unwrap())}.to_vec();
 	let size_first_openparam: usize = first_openparam.len() * size_of::<u8>();
