@@ -11,6 +11,7 @@ use std::{
 };
 
 use criterion::{criterion_group, Criterion};
+use uhyve_interface::parameters::{CloseParams, UnlinkParams};
 
 /// Uses Cargo to build a kernel in the `tests/test-kernels` directory.
 /// Returns a path to the build binary.
@@ -62,7 +63,7 @@ unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
 	::core::slice::from_raw_parts((p as *const T) as *const u8, ::core::mem::size_of::<T>())
 }
 
-pub fn run_open_test(c: &mut Criterion) {
+pub fn run_open_unlink_test(c: &mut Criterion) {
 	use std::ffi::CString;
 
 	use criterion::Throughput;
@@ -99,28 +100,36 @@ pub fn run_open_test(c: &mut Criterion) {
 	}
 
 	let mut group: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> =
-		c.benchmark_group("hypercall_open_test");
-	group.sample_size(100);
+		c.benchmark_group("hypercall_open_unlink_test");
+	group.sample_size(200);
 
 	group.throughput(Throughput::Elements(names.len() as u64));
 	group.bench_function("uhyve open() hypercall", |b| {
 		b.iter(|| {
 			for i in 0..ARRAY_LEN {
-				uhyvelib::hypercall::open(
-					&mem,
-					&mut OpenParams {
-						name: GuestPhysAddr::new((MIN_PHYSMEM_SIZE + NAME_LEN * i) as u64),
-						flags: 0o0002 | 0o0100 | 0o0200,
-						mode: 0x1777,
-						ret: 0,
-					},
-				);
+				let name = GuestPhysAddr::new((MIN_PHYSMEM_SIZE + NAME_LEN * i) as u64);
+				let mut open = &mut OpenParams {
+					name: name,
+					flags: 0o0001|0o0100|0o0200, // O_WRONLY|O_CREAT|O_EXCL
+					mode: 0o0666,
+					ret: 0,
+				};
+				uhyvelib::hypercall::open(&mem, &mut open);
+				let mut retcode = open.ret;
+				assert_ne!(retcode, -1);
+				let mut unlink = &mut UnlinkParams {
+					name: name,
+					ret: 0,
+				};
+				uhyvelib::hypercall::unlink(&mem, &mut unlink);
+				retcode = unlink.ret;
+				assert_ne!(retcode, -1);
 			}
 		});
 
-		for i in 0..ARRAY_LEN {
-			remove_file(format!("{}{}{}", "/tmp/", format!("{:0>3}", i), ".txt")).unwrap();
-		}
+		//for i in 0..ARRAY_LEN {
+			//remove_file(format!("{}{}{}", "/tmp/", format!("{:0>3}", i), ".txt")).unwrap();
+		//}
 	});
 	group.finish();
 }
@@ -197,4 +206,4 @@ pub fn run_file_test(c: &mut Criterion) {
 }
 
 // criterion_group!(run_kernel_group, run_compile_hello_world, run_file_test);
-criterion_group!(run_kernel_group, run_open_test);
+criterion_group!(run_kernel_group, run_open_unlink_test);
