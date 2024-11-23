@@ -24,17 +24,15 @@ fn new_file_test() {
 			.unwrap()
 			.try_into()
 			.unwrap(),
-		mount: Some(vec!["foo.txt:foo.txt".to_string()]),
 		..Default::default()
 	};
 
-	let output_path = PathBuf::from("foo.txt");
-	remove_file_if_exists(&output_path);
-	let bin_path: PathBuf = build_hermit_bin("create_file");
+	let bin_path = build_hermit_bin("create_file");
 	let vm = UhyveVm::new(bin_path, params).unwrap();
+	let mut output_path = vm.get_tempdir().path().to_path_buf();
+	output_path.push("foo.txt");
 	let res = vm.run(None);
 	assert_eq!(res.code, 0);
-
 	verify_file_equals(&output_path, "Hello, world!");
 	remove_file(&output_path).unwrap_or_else(|_| panic!("Can't remove {}", output_path.display()));
 }
@@ -58,7 +56,7 @@ fn uhyvefilemap_test() {
 	// The file should not exist on the host OS.
 	let mut vm = UhyveVm::new(bin_path.clone(), params.clone()).unwrap();
 	let mut res = vm.run(None);
-	assert_eq!(res.code, -1);
+	assert_eq!(res.code, 0);
 	assert!(!testfile.exists());
 
 	params.mount = Some(vec!["foo.txt:foo.txt".to_string()]);
