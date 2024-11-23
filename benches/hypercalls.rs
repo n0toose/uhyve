@@ -1,11 +1,11 @@
 extern crate criterion;
 extern crate uhyvelib;
 
-use std::ffi::CString;
+use std::{ffi::CString, mem::offset_of};
 
 use criterion::{criterion_group, Criterion, Throughput};
 use uhyve_interface::{
-	parameters::{OpenParams, UnlinkParams},
+	parameters::{CloseParams, OpenParams, UnlinkParams},
 	GuestPhysAddr,
 };
 use uhyvelib::{mem::MmapMemory, MIN_PHYSMEM_SIZE};
@@ -21,6 +21,22 @@ fn init_guest_mem(mem: &MmapMemory) -> &mut [u8] {
 	mem_slice_mut
 }
 
+fn string_to_cstring(string: String) -> CString {
+	CString::new(string.as_bytes()).unwrap()
+}
+
+fn write_data_to_memory(mem: &MmapMemory, offset: usize, data: &[u8], data_size: usize) {
+	let mut mem_slice_mut: &mut [u8] = init_guest_mem(mem);
+	for i in 0..data_size {
+		mem_slice_mut[offset + i] = data[i]
+	}
+}
+
+
+/// Given a provided MmapMemory object, this function will write 100 names of the format
+/// "/tmp/012.txt". It will return the length of the array, which should be 100.
+/// 
+/// TODO: Allow more than 100 names and different name lengths.
 fn fill_memory_with_100_tempfile_names(
 	mem: &MmapMemory,
 	array_len: usize,
@@ -28,22 +44,17 @@ fn fill_memory_with_100_tempfile_names(
 ) -> usize {
 	let names: Vec<CString> = (0..array_len)
 		.map(|i| {
-			let string: String = format!("{}{}{}", "/tmp/", format!("{:0>3}", i), ".txt");
-			CString::new(string.as_bytes()).unwrap()
+			let string = format!("{}{}{}", "/tmp/", format!("{:0>3}", i), ".txt"); 
+			string_to_cstring(string)
 		})
 		.collect();
 	assert_eq!(names[0].as_bytes_with_nul().len(), name_len);
 	assert_eq!(names.len(), array_len);
 
-	let mut mem_slice_mut = init_guest_mem(mem);
-
-	// Making things nicer for the debugger.
-	let offset = MIN_PHYSMEM_SIZE;
 	for i in 0..array_len {
 		let name = names[i].as_bytes_with_nul();
-		for j in 0..name_len {
-			mem_slice_mut[offset + i * name_len + j] = name[j];
-		}
+		let offset = MIN_PHYSMEM_SIZE + i * name_len;
+		write_data_to_memory(&mem, offset, name, name_len);
 	}
 
 	names.len()
@@ -72,11 +83,11 @@ pub fn run_open_unlink_test(c: &mut Criterion) {
 	};
 
 	let mut group: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> =
-		c.benchmark_group("hypercall_open_unlink_test");
+		c.benchmark_group("uhyve hypercall: open + unlink");
 	group.sample_size(200);
 
-	group.throughput(Throughput::Elements(name_len));
-	group.bench_function("uhyve open() hypercall", |b| {
+	group.throughput(Throughput::Elements(name_len * 100));
+	group.bench_function("uhyve hypercall: open + unlink", |b| {
 		b.iter(|| {
 			for i in 0..ARRAY_LEN {
 				let name = GuestPhysAddr::new((MIN_PHYSMEM_SIZE + NAME_LEN * i) as u64);
@@ -93,4 +104,37 @@ pub fn run_open_unlink_test(c: &mut Criterion) {
 	group.finish();
 }
 
-criterion_group!(run_hypercalls_group, run_open_unlink_test);
+pub fn run_open_test(c: &mut Criterion) {
+	let mem: MmapMemory =
+		MmapMemory::new(0, MIN_PHYSMEM_SIZE * 2, GuestPhysAddr::new(0), false, true);
+
+	let path_str = "/dev/zero\0";
+	write_data_to_memory(&mem, MIN_PHYSMEM_SIZE, path_str.as_bytes(), path_str.len());
+	let mut open = &mut OpenParams {
+		name: GuestPhysAddr::new(MIN_PHYSMEM_SIZE as u64),
+		flags: 0o0001 | 0o0100 | 0o0200, // O_WRONLY|O_CREAT|O_EXCL
+		mode: 0o0666,
+		ret: 0,
+	};
+
+	let mut retcode = open.ret;
+
+	let mut group: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> =
+		c.benchmark_group("uhyve hypercall: open /dev/null");
+	group.sample_size(200);
+
+	group.bench_function("uhyve hypercall: open /dev/null", |b| {
+		b.iter(|| {
+			// returns fd 0
+			uhyvelib::hypercall::open(&mem, &mut open);
+			retcode = open.ret;
+			assert_eq!(retcode, -1);
+			uhyvelib::hypercall::open(&mem, &mut open);
+			retcode = open.ret;
+			assert_eq!(retcode, -1);
+		});
+	});
+	group.finish();
+}
+
+criterion_group!(run_hypercalls_group, run_open_unlink_test, run_open_test);
