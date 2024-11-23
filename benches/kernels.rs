@@ -4,7 +4,7 @@ extern crate uhyvelib;
 use std::{
 	array, env,
 	f64::MIN,
-	fs,
+	fs::{self, remove_file},
 	io::Write,
 	path::{Path, PathBuf},
 	process::{Command, Stdio},
@@ -65,6 +65,7 @@ unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
 pub fn run_open_test(c: &mut Criterion) {
 	use std::ffi::CString;
 
+	use criterion::Throughput;
 	use uhyve_interface::{parameters::OpenParams, GuestPhysAddr};
 	use uhyvelib::{initialize_pagetables, mem::MmapMemory, MIN_PHYSMEM_SIZE};
 
@@ -97,41 +98,31 @@ pub fn run_open_test(c: &mut Criterion) {
 		}
 	}
 
-	if false {
-		let mut slice = mem_slice_mut.to_vec();
-		for i in 0..slice.len() {
-			if (slice[i] == 0x2f && slice[i + 1] == 0x74) {
-				panic!("it works! {}, {}", i, i + 1);
-			}
-		}
-	}
-
-	uhyvelib::hypercall::open(
-		&mem,
-		&mut OpenParams {
-			name: GuestPhysAddr::new((MIN_PHYSMEM_SIZE + NAME_LEN) as u64),
-			mode: 0x777,
-			flags: 0o100 | 0o2,
-			ret: 0,
-		},
-	);
-
-	/*
-	let mut group = c.benchmark_group("compile_hello_world");
+	let mut group: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> =
+		c.benchmark_group("hypercall_open_test");
 	group.sample_size(100);
-	group.throughput(Throughput::Elements(4096 as u64));
 
-	for i in 0..100 {
-		group.bench_with_input(BenchmarkId::new("uhyve open() test", i), &i,
-			|b| {
-				let openparam = &mut openparams_vec.into_iter().next().unwrap();
-				uhyvelib::hypercall::open(&mem, openparam);
-				let fd = openparam.ret;
-				let close: &mut CloseParams = &mut CloseParams { fd: fd, ret: -1 };
-				uhyvelib::hypercall::close(close);
-			});
-	}
-	*/
+	group.throughput(Throughput::Elements(names.len() as u64));
+	group.bench_function("uhyve open() hypercall", |b| {
+		b.iter(|| {
+			for i in 0..ARRAY_LEN {
+				uhyvelib::hypercall::open(
+					&mem,
+					&mut OpenParams {
+						name: GuestPhysAddr::new((MIN_PHYSMEM_SIZE + NAME_LEN * i) as u64),
+						flags: 0o0002 | 0o0100 | 0o0200,
+						mode: 0x1777,
+						ret: 0,
+					},
+				);
+			}
+		});
+
+		for i in 0..ARRAY_LEN {
+			remove_file(format!("{}{}{}", "/tmp/", format!("{:0>3}", i), ".txt")).unwrap();
+		}
+	});
+	group.finish();
 }
 
 pub fn run_compile_hello_world(c: &mut Criterion) {
