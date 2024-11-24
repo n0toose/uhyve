@@ -83,14 +83,57 @@ impl UhyveFileMap {
 	/// Returns the host_path on the host filesystem given a requested guest_path, if it exists.
 	///
 	/// This function will look up the requested file in the UhyveFileMap and return
-	/// the corresponding path. Used in [`Hyper`] Internally, this function converts
-	/// &OsString to OsString. Otherwise, we would borrow UhyveFileMap in
-	/// [crate::hypercall::open] as an immutable, when we may need a mutable borrow
-	/// at a later point.
+	/// the corresponding path. Internally, this function converts &OsString to OsString
+	/// Otherwise, we would borrow UhyveFileMap in [crate::hypercall::open] as an
+	/// immutable, when we may need a mutable borrow at a later point.
 	///
-	/// `guest_path` - The guest path. The file that the kernel is trying to open.
+	/// If the provided file is in a path containing directories, this function will
+	/// try to look up whether a parent directory has been mapped. If this is
+	/// the case, the child directories "in between" of the mapped directory and
+	/// the requested file, as well as the file itself, will be added to the map.
+	///
+	/// * `guest_path` - The guest path. The file that the kernel is trying to open.
 	pub fn get_host_path(&mut self, guest_path: &str) -> Option<OsString> {
-		self.files.get(guest_path).map(OsString::from)
+		let host_path = self.files.get(guest_path).map(OsString::from);
+		if host_path.is_some() {
+			host_path
+		} else {
+			info!("Guest requested to open a path that was not mapped.");
+			if self.files.is_empty() {
+				info!("UhyveFileMap is empty, returning None...");
+				return None;
+			}
+
+			let requested_guest_pathbuf = PathBuf::from(guest_path);
+			if let Some(parent_of_guest_path) = requested_guest_pathbuf.parent() {
+				info!("The file is in a child directory, searching for the directory...");
+				let ancestors = parent_of_guest_path.ancestors();
+				for searched_parent_guest in ancestors {
+					let parent_host: Option<&OsString> =
+						self.files.get(searched_parent_guest.to_str().unwrap());
+					if let Some(parent_host) = parent_host {
+						let mut host_path = PathBuf::from(parent_host);
+						let mut new_guest_path = PathBuf::new();
+						let guest_path_suffix = requested_guest_pathbuf
+							.strip_prefix(searched_parent_guest)
+							.unwrap();
+
+						guest_path_suffix.components().for_each(|c| {
+							host_path.push(c);
+							new_guest_path.push(c);
+							self.files.insert(
+								new_guest_path.as_os_str().to_str().unwrap().to_owned(),
+								host_path.as_os_str().to_os_string(),
+							);
+						});
+
+						return host_path.into_os_string().into();
+					}
+				}
+			}
+			info!("The file is not in a child directory, returning None...");
+			None
+		}
 	}
 
 	pub fn append_file_and_return_cstring(
@@ -223,5 +266,55 @@ mod tests {
 		);
 
 		assert!(map.get_host_path("this_file_is_not_mapped").is_none());
+	}
+
+	#[test]
+	fn test_uhyvefilemap_folder() {
+		// See `test_uhyvefilemap()`
+		let mut fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+		fixture_path.push("tests/data/fixtures/fs");
+		assert!(fixture_path.is_dir());
+
+		// Tests successful directory traversal starting from file in child
+		// directory of a mapped directory.
+		let guest_path_map = PathBuf::from("this_folder_exists");
+		let mut host_path_map = fixture_path.clone();
+		host_path_map.push("this_folder_exists");
+
+		let mut target_guest_path =
+			PathBuf::from("this_folder_exists/folder_in_folder/file_in_second_folder.txt");
+		let mut target_host_path = fixture_path;
+		target_host_path.push(target_guest_path.clone());
+
+		let uhyvefilemap_params = vec![format!(
+			"{}:{}",
+			host_path_map.to_str().unwrap(),
+			guest_path_map.to_str().unwrap()
+		)];
+		let mut map = UhyveFileMap::new(&uhyvefilemap_params.into());
+
+		let mut found_host_path = map.get_host_path(target_guest_path.clone().to_str().unwrap());
+
+		assert_eq!(
+			found_host_path.unwrap(),
+			target_host_path.as_os_str().to_str().unwrap()
+		);
+
+		// Tests successful directory traversal of the child directory.
+		// The pop() just removes the text file.
+		// guest_path.pop();
+		target_host_path.pop();
+		target_guest_path.pop();
+
+		found_host_path = map.get_host_path(target_guest_path.to_str().unwrap());
+		assert_eq!(
+			found_host_path.unwrap(),
+			target_host_path.as_os_str().to_str().unwrap()
+		);
+
+		// Tests directory traversal with no maps
+		map = UhyveFileMap::new(&None);
+		found_host_path = map.get_host_path(target_guest_path.to_str().unwrap());
+		assert!(found_host_path.is_none());
 	}
 }
