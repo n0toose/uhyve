@@ -21,7 +21,7 @@ pub mod macos;
 #[cfg(target_os = "macos")]
 pub use macos as os;
 pub mod hypercall;
-mod isolation;
+pub mod isolation;
 pub mod mem;
 pub mod paging;
 pub mod params;

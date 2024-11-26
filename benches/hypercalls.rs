@@ -1,14 +1,15 @@
 extern crate criterion;
 extern crate uhyvelib;
 
-use std::{ffi::CString, mem::offset_of};
+use std::ffi::CString;
 
 use criterion::{criterion_group, Criterion, Throughput};
 use uhyve_interface::{
-	parameters::{CloseParams, OpenParams, UnlinkParams},
+	parameters::{OpenParams, UnlinkParams},
 	GuestPhysAddr,
 };
-use uhyvelib::{mem::MmapMemory, MIN_PHYSMEM_SIZE};
+use uhyvelib::{isolation::UhyveFileMap, mem::MmapMemory, MIN_PHYSMEM_SIZE};
+use uhyvelib::isolation::create_temp_dir;
 
 /// Initialize the page tables for the guest
 fn init_guest_mem(mem: &MmapMemory) -> &mut [u8] {
@@ -76,6 +77,9 @@ pub fn run_open_unlink_test(c: &mut Criterion) {
 		ret: 0,
 	};
 
+	let empty_array: [String; 0] = [];
+	let tempdir = create_temp_dir();
+
 	let mut retcode = open.ret;
 	let mut unlink: &mut UnlinkParams = &mut UnlinkParams {
 		name: GuestPhysAddr::new(0),
@@ -90,12 +94,13 @@ pub fn run_open_unlink_test(c: &mut Criterion) {
 	group.bench_function("uhyve hypercall: open + unlink", |b| {
 		b.iter(|| {
 			for i in 0..ARRAY_LEN {
+				let mut map: UhyveFileMap = UhyveFileMap::new(&empty_array);
 				let name = GuestPhysAddr::new((MIN_PHYSMEM_SIZE + NAME_LEN * i) as u64);
 				open.name = name;
-				uhyvelib::hypercall::open(&mem, &mut open);
+				uhyvelib::hypercall::open(&mem, &mut open, &mut map, &tempdir);
 				assert_ne!(retcode, -1);
 				unlink.name = name;
-				uhyvelib::hypercall::unlink(&mem, &mut unlink);
+				uhyvelib::hypercall::unlink(&mem, &mut unlink, &mut map,);
 				retcode = unlink.ret;
 				assert_ne!(retcode, -1);
 			}
@@ -108,6 +113,7 @@ pub fn run_open_test(c: &mut Criterion) {
 	let mem: MmapMemory =
 		MmapMemory::new(0, MIN_PHYSMEM_SIZE * 2, GuestPhysAddr::new(0), false, true);
 
+	let tempdir = create_temp_dir();
 	let path_str = "/dev/zero\0";
 	write_data_to_memory(&mem, MIN_PHYSMEM_SIZE, path_str.as_bytes(), path_str.len());
 	let mut open = &mut OpenParams {
@@ -121,15 +127,56 @@ pub fn run_open_test(c: &mut Criterion) {
 
 	let mut group: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime> =
 		c.benchmark_group("uhyve hypercall: open /dev/null");
-	group.sample_size(200);
+	group.sample_size(2000);
 
-	group.bench_function("uhyve hypercall: open /dev/null", |b| {
+	group.bench_function("empty file map", |b| {
 		b.iter(|| {
-			// returns fd 0
-			uhyvelib::hypercall::open(&mem, &mut open);
+			let mut map: UhyveFileMap = UhyveFileMap::new(&[]);
+			uhyvelib::hypercall::open(&mem, &mut open, &mut map, &tempdir);
 			retcode = open.ret;
 			assert_eq!(retcode, -1);
-			uhyvelib::hypercall::open(&mem, &mut open);
+		});
+	});
+	group.finish();
+
+	group = c.benchmark_group("uhyve hypercall: open /dev/null");
+	group.sample_size(2000);
+	group.bench_function("empty file map (two opens)", |b| {
+		b.iter(|| {
+			let mut map: UhyveFileMap = UhyveFileMap::new(&[]);
+			uhyvelib::hypercall::open(&mem, &mut open, &mut map, &tempdir);
+			retcode = open.ret;
+			assert_eq!(retcode, -1);
+			uhyvelib::hypercall::open(&mem, &mut open, &mut map, &tempdir);
+			retcode = open.ret;
+			assert_eq!(retcode, -1);
+		});
+	});
+	group.finish();
+
+	group = c.benchmark_group("uhyve hypercall: open /dev/null");
+	group.sample_size(2000);
+	group.bench_function("file map containing file", |b| {
+		b.iter(|| {
+			// returns fd 0
+			let mut map: UhyveFileMap = UhyveFileMap::new(&["/dev/zero:/dev/zero".to_string()]);
+			uhyvelib::hypercall::open(&mem, &mut open, &mut map, &tempdir);
+			retcode = open.ret;
+			assert_eq!(retcode, -1);
+		});
+	});
+	group.finish();
+
+	group = c.benchmark_group("uhyve hypercall: open /dev/null");
+	group.sample_size(200);
+	group.bench_function("file map containing file (two opens)", |b| {
+		b.iter(|| {
+			// returns fd 0
+			let mut map: UhyveFileMap = UhyveFileMap::new(&["/dev/zero:/dev/zero".to_string()]);
+			uhyvelib::hypercall::open(&mem, &mut open, &mut map, &tempdir);
+			retcode = open.ret;
+			assert_eq!(retcode, -1);
+			uhyvelib::hypercall::open(&mem, &mut open, &mut map, &tempdir);
 			retcode = open.ret;
 			assert_eq!(retcode, -1);
 		});
@@ -137,4 +184,4 @@ pub fn run_open_test(c: &mut Criterion) {
 	group.finish();
 }
 
-criterion_group!(run_hypercalls_group, run_open_unlink_test, run_open_test);
+criterion_group!(run_hypercalls_group, run_open_test);
