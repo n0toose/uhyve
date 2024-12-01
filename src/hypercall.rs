@@ -66,6 +66,10 @@ pub unsafe fn address_to_hypercall(
 				let syscmdval = mem.get_ref_mut(data).unwrap();
 				Hypercall::Cmdval(syscmdval)
 			}
+			HypercallAddress::ChangeDir => {
+				let syschdir = mem.get_ref_mut(data).unwrap();
+				Hypercall::ChangeDir(syschdir)
+			}
 			HypercallAddress::Uart => Hypercall::SerialWriteByte(data.as_u64() as u8),
 			HypercallAddress::SerialBufferWrite => {
 				let sysserialwrite = mem.get_ref_mut(data).unwrap();
@@ -94,6 +98,21 @@ pub fn unlink(mem: &MmapMemory, sysunlink: &mut UnlinkParams, file_map: &mut Uhy
 	} else {
 		error!("The kernel requested to open() a path that is not valid UTF-8. Rejecting...");
 		sysunlink.ret = -EIO;
+	}
+}
+
+/// `chdir` is used in relative paths of guest directories.
+pub fn chdir(mem: &MmapMemory, syschdir: &mut ChdirParams, file_map: &mut UhyveFileMap) {
+	let requested_path = mem.host_address(syschdir.name).unwrap() as *const i8;
+	if let Ok(requested_path) = unsafe { CStr::from_ptr(requested_path) }.to_str() {
+		// We can safely unwrap here, as host_path.as_bytes will never contain internal \0 bytes
+		// As host_path_c_string is a valid CString, this implementation is presumed to be safe.
+		file_map.guest_cwd.clear();
+		file_map.guest_cwd.push(requested_path);
+		syschdir.ret = 0;
+	} else {
+		error!("The kernel requested to use a working directory that does not  valid UTF-8. Rejecting...");
+		syschdir.ret = -1;
 	}
 }
 

@@ -10,14 +10,17 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct UhyveFileMap {
 	files: HashMap<String, OsString>,
+	pub guest_cwd: OsString,
 }
 
 impl UhyveFileMap {
 	/// Creates a UhyveFileMap.
 	///
 	/// * `mappings` - A list of host->guest path mappings with the format "./host_path.txt:guest.txt"
-	pub fn new(mappings: &[String]) -> UhyveFileMap {
+	/// * `guest_cwd_path` - "Current working directory". Will be prepended to relative guest paths.
+	pub fn new(mappings: &[String], guest_cwd_path: &str) -> UhyveFileMap {
 		UhyveFileMap {
+			// TODO: Move this functionality someplace else, add support for guest_cwd.
 			files: mappings
 				.iter()
 				.map(String::as_str)
@@ -29,6 +32,7 @@ impl UhyveFileMap {
 					)
 				})
 				.collect(),
+			guest_cwd: OsString::from(guest_cwd_path),
 		}
 	}
 
@@ -48,6 +52,8 @@ impl UhyveFileMap {
 	///
 	/// * `guest_path` - The guest path that is to be looked up in the map.
 	pub fn get_host_path(&mut self, guest_path: &str) -> Option<OsString> {
+		// TODO: Check if guest_path is relative, "canonicalize" and prepend
+		// the guest_cwd if necessary.
 		let host_path = self.files.get(guest_path).map(OsString::from);
 		if host_path.is_some() {
 			host_path
@@ -169,7 +175,7 @@ mod tests {
 			path_prefix.clone() + "/this_symlink_leads_to_a_file" + ":guest_file_symlink",
 		];
 
-		let mut map = UhyveFileMap::new(&map_parameters);
+		let mut map = UhyveFileMap::new(&map_parameters, "/root");
 
 		assert_eq!(
 			map.get_host_path("readme_file.md").unwrap(),
@@ -221,7 +227,7 @@ mod tests {
 			host_path_map.to_str().unwrap(),
 			guest_path_map.to_str().unwrap()
 		)];
-		let mut map = UhyveFileMap::new(&uhyvefilemap_params);
+		let mut map = UhyveFileMap::new(&uhyvefilemap_params, "/root");
 
 		let mut found_host_path = map.get_host_path(target_guest_path.clone().to_str().unwrap());
 
@@ -252,7 +258,7 @@ mod tests {
 			guest_path_map.to_str().unwrap()
 		)];
 
-		map = UhyveFileMap::new(&uhyvefilemap_params);
+		map = UhyveFileMap::new(&uhyvefilemap_params, "/root");
 
 		target_guest_path = PathBuf::from("this_symlink_leads_to_a_file");
 		target_host_path = fixture_path.clone();
@@ -265,7 +271,7 @@ mod tests {
 
 		// Tests directory traversal with no maps
 		let empty_array: [String; 0] = [];
-		map = UhyveFileMap::new(&empty_array);
+		map = UhyveFileMap::new(&empty_array, "/root");
 		found_host_path = map.get_host_path(target_guest_path.to_str().unwrap());
 		assert!(found_host_path.is_none());
 	}
