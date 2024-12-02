@@ -48,7 +48,7 @@ pub fn run_simple_vm(kernel_path: PathBuf) -> VmResult {
 	env_logger::try_init().ok();
 	println!("Launching kernel {}", kernel_path.display());
 	let params = Params {
-		cpu_count: 2.try_into().unwrap(),
+		cpu_count: 1.try_into().unwrap(),
 		memory_size: Byte::from_u64_with_unit(32, Unit::MiB)
 			.unwrap()
 			.try_into()
