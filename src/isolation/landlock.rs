@@ -280,7 +280,7 @@ pub(crate) fn initialize(
 	// enforce Landlock, such as the kernel path and a couple of paths useful for sysinfo.
 	//
 	// See: https://github.com/GuillaumeGomez/sysinfo/blob/8fd58b8/src/unix/linux/cpu.rs#L420
-	let uhyve_ro_paths = [
+	let mut uhyve_ro_paths = [
 		kernel_path,
 		String::from("/etc/"),
 		String::from("/sys/devices/system"),
@@ -290,7 +290,13 @@ pub(crate) fn initialize(
 	.to_vec();
 
 	let mut uhyve_rw_paths: Vec<String> = [String::from("/dev/kvm")].to_vec();
+
 	let mut uhyve_ro_dirs = Vec::<String>::new();
+
+	#[cfg(feature = "instrument")]
+	uhyve_rw_paths.push(String::from("./uhyve_trace"));
+	#[cfg(feature = "instrument")]
+	uhyve_ro_paths.push(String::from("/proc/self/maps"));
 
 	host_paths.iter_mut().for_each(|host_path| {
 		let host_pathbuf = PathBuf::from(host_path.clone());
