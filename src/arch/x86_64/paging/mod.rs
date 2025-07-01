@@ -134,7 +134,8 @@ pub fn initialize_pagetables(
 }
 
 /// Helper fn for debugging pagetables
-#[allow(dead_code)]
+// This is only used in `tests::test_pagetable_initialization::check_and_print`.
+#[cfg(test)]
 fn pretty_print_pagetable(pt: &PageTable) {
 	println!(
 		"Idx       Address          Idx       Address          Idx       Address          Idx       Address      "
