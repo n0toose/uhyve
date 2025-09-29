@@ -261,6 +261,7 @@ pub fn lseek(syslseek: &mut LseekParams, file_map: &mut UhyveFileMap) {
 /// Copies the arguments of the application into the VM's memory to the destinations specified in `syscmdval`.
 pub fn copy_argv(path: &OsStr, argv: &[String], syscmdval: &CmdvalParams, mem: &MmapMemory) {
 	// copy kernel path as first argument
+	return;
 	let argvp = mem
 		.host_address(syscmdval.argv)
 		.expect("Systemcall parameters for Cmdval are invalid") as *const GuestPhysAddr;
@@ -292,6 +293,7 @@ pub fn copy_argv(path: &OsStr, argv: &[String], syscmdval: &CmdvalParams, mem: &
 
 /// Copies the environment variables into the VM's memory to the destinations specified in `syscmdval`.
 pub fn copy_env(env: &EnvVars, syscmdval: &CmdvalParams, mem: &MmapMemory) {
+	return;
 	let envp = mem
 		.host_address(syscmdval.envp)
 		.expect("Systemcall parameters for Cmdval are invalid") as *const GuestPhysAddr;
