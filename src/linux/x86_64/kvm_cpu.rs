@@ -90,7 +90,7 @@ impl VirtualizationBackendInternal for KvmVm {
 		// TODO: Ensure that the gap's condition is correct and shouldn't only start existing after crossing 4096MiB???
 		// FIXME: Still broken if mem is higher than KVM_32BIT_GAP_START + KVM_32BIT_GAP_SIZE.
 		// TODO: Confirm > is correct.
-		if (peripherals.mem.memory_size > KVM_32BIT_GAP_START) {
+		if peripherals.mem.memory_size > KVM_32BIT_GAP_START {
 			let gap_size = std::cmp::min(
 				peripherals.mem.memory_size - sz,
 				KVM_32BIT_MAX_MEM_SIZE - KVM_32BIT_GAP_START,
@@ -108,7 +108,7 @@ impl VirtualizationBackendInternal for KvmVm {
 
 			unsafe { vm.set_user_memory_region(kvm_mem) }?;
 
-			/*
+			// FIXME: Do something other than this complicated if... else mess.
 			if peripherals.mem.memory_size > KVM_32BIT_GAP_START + KVM_32BIT_GAP_SIZE {
 				let kvm_mem = kvm_userspace_memory_region {
 					slot: 2,
@@ -123,7 +123,6 @@ impl VirtualizationBackendInternal for KvmVm {
 
 				unsafe { vm.set_user_memory_region(kvm_mem) }?;
 			}
-			*/
 		}
 
 		debug!("Initialize interrupt controller");

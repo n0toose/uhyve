@@ -3,7 +3,7 @@
 use std::{fmt::Write, ops::Range};
 
 use uhyve_interface::GuestPhysAddr;
-use vm_fdt::{FdtWriter, FdtWriterNode, FdtWriterResult};
+use vm_fdt::{FdtReserveEntry, FdtWriter, FdtWriterNode, FdtWriterResult};
 
 #[cfg(target_arch = "aarch64")]
 use crate::{
@@ -24,7 +24,9 @@ pub struct Fdt {
 impl Fdt {
 	/// Creates a new FDT builder.
 	pub fn new() -> FdtWriterResult<Self> {
-		let mut writer = FdtWriter::new()?;
+		// TODO: Move x86_64-specific gap someplace else.
+		let mut writer =
+			FdtWriter::new_with_mem_reserv(&[FdtReserveEntry::new(0xC000_0000, 1024 << 20)?])?;
 
 		let root_node = writer.begin_node("")?;
 		writer.property_string("compatible", "hermit,uhyve")?;
