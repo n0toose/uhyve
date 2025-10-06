@@ -22,10 +22,7 @@ pub(crate) fn generate_address(object_mem_size: usize) -> GuestPhysAddr {
 	let start_address_upper_bound: u64 =
 		0x0000_0000_CFF0_0000 - object_mem_size as u64 - KERNEL_OFFSET;
 
-	GuestPhysAddr::new(
-		rng.random_range(0x0..start_address_upper_bound)
-			.align_down(0x20_0000),
-	)
+	GuestPhysAddr::new(0xA200000)
 }
 
 /// Converts a virtual address in the guest to a physical address in the guest

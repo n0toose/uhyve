@@ -7,7 +7,7 @@ use std::{
 	thread,
 	time::SystemTime,
 };
-
+use std::ops::Add;
 use core_affinity::CoreId;
 use hermit_entry::{
 	HermitVersion,
@@ -449,7 +449,12 @@ fn write_fdt_into_mem(mem: &MmapMemory, params: &Params, cpu_freq: Option<NonZer
 
 	let mut fdt = Fdt::new()
 		.unwrap()
-		.memory(mem.guest_address..mem.guest_address + mem.memory_size as u64)
+		// The constants present here are guesstimates.
+		.memory(mem.guest_address..mem.guest_address.add(0x100000 as u64))
+		.unwrap()
+		.memory(mem.guest_address.add(0x100000 as u64)..mem.guest_address.add(0x100000 as u64 + 0x200000 as u64))
+		.unwrap()
+		.memory(GuestPhysAddr::from(0x10000000 as u64)..mem.guest_address.add(mem.memory_size as u64 - 0x10000000 as u64))
 		.unwrap()
 		.kernel_args(&params.kernel_args[..sep])
 		.app_args(params.kernel_args.get(sep + 1..).unwrap_or_default());
