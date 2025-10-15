@@ -4,7 +4,7 @@ use kvm_bindings::*;
 use kvm_ioctls::{VcpuExit, VcpuFd, VmFd};
 use uhyve_interface::{
 	GuestPhysAddr,
-	v1::{Hypercall, HypercallAddress},
+	v2::{Hypercall, HypercallAddress},
 };
 use vmm_sys_util::eventfd::EventFd;
 use x86_64::registers::control::{Cr0Flags, Cr4Flags};
@@ -389,13 +389,16 @@ impl VirtualCPU for KvmCpu {
 			match self.vcpu.run() {
 				Ok(vcpu_stop_reason) => match vcpu_stop_reason {
 					VcpuExit::Hlt => {
+						warn!("exit");
 						// Ignore `VcpuExit::Hlt`
 						debug!("{:?}", VcpuExit::Hlt);
 					}
 					VcpuExit::Shutdown => {
+						warn!("exit");
 						return Ok(VcpuStopReason::Exit(0));
 					}
 					VcpuExit::IoIn(port, addr) => {
+						warn!("exit");
 						if let Some(s) = self.stats.as_mut() {
 							s.increment_val(VmExit::PCIRead)
 						}
@@ -445,10 +448,16 @@ impl VirtualCPU for KvmCpu {
 						}
 					}
 					VcpuExit::IoOut(port, addr) => {
+						warn!("exit");
 						let data_addr =
 							GuestPhysAddr::new(unsafe { (*(addr.as_ptr() as *const u32)) as u64 });
+						warn!("port: {port:#x}, data_addr: {data_addr:p}");
 						if let Some(hypercall) = unsafe {
-							hypercall::address_to_hypercall(&self.peripherals.mem, port, data_addr)
+							hypercall::address_to_hypercall(
+								&self.peripherals.mem,
+								port as u64,
+								data_addr,
+							)
 						} {
 							if let Some(s) = self.stats.as_mut() {
 								s.increment_val(VmExit::Hypercall(HypercallAddress::from(
@@ -457,25 +466,8 @@ impl VirtualCPU for KvmCpu {
 							}
 
 							match hypercall {
-								Hypercall::Cmdsize(syssize) => syssize.update(
-									&self.kernel_info.path,
-									&self.kernel_info.params.kernel_args,
-								),
-								Hypercall::Cmdval(syscmdval) => {
-									hypercall::copy_argv(
-										self.kernel_info.path.as_os_str(),
-										&self.kernel_info.params.kernel_args,
-										syscmdval,
-										&self.peripherals.mem,
-									);
-									hypercall::copy_env(
-										&self.kernel_info.params.env,
-										syscmdval,
-										&self.peripherals.mem,
-									);
-								}
 								Hypercall::Exit(sysexit) => {
-									return Ok(VcpuStopReason::Exit(sysexit.arg));
+									return Ok(VcpuStopReason::Exit(sysexit));
 								}
 								Hypercall::FileClose(sysclose) => hypercall::close(
 									sysclose,
@@ -583,6 +575,7 @@ impl VirtualCPU for KvmCpu {
 						}
 					}
 					VcpuExit::MmioRead(addr, _targ) => {
+						warn!("exit");
 						match addr {
 							0x9_F000..0xA_0000 | 0xF_0000..0x10_0000 => {} // Search for MP floating table
 							_ => {
@@ -592,10 +585,12 @@ impl VirtualCPU for KvmCpu {
 						}
 					}
 					VcpuExit::MmioWrite(addr, _targ) => {
+						warn!("exit");
 						self.print_registers();
 						panic!("undefined mmio write to {addr:#x}");
 					}
 					VcpuExit::Debug(debug) => {
+						warn!("exit");
 						if let Some(s) = self.stats.as_mut() {
 							s.increment_val(VmExit::Debug)
 						}

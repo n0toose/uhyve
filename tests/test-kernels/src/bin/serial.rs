@@ -2,7 +2,7 @@
 use hermit as _;
 use uhyve_interface::{
 	GuestPhysAddr,
-	v1::{HypercallAddress, parameters::SerialWriteBufferParams},
+	v2::{HypercallAddress, parameters::SerialWriteBufferParams},
 };
 #[cfg(target_arch = "x86_64")]
 use x86_64::{
@@ -32,12 +32,12 @@ pub fn virtual_to_physical(virtual_address: VirtAddr) -> Option<GuestPhysAddr> {
 fn main() {
 	println!("Hello from serial!");
 
-	let mut serial_byte_port = Port::new(HypercallAddress::Uart as u16);
+	let mut serial_byte_port = Port::new(HypercallAddress::SerialWriteByte as u16);
 	for c in "ABCD\n".bytes() {
 		unsafe { serial_byte_port.write(c) };
 	}
 
-	let mut serial_buf_port = Port::new(HypercallAddress::SerialBufferWrite as u16);
+	let mut serial_buf_port = Port::new(HypercallAddress::SerialWriteBuffer as u16);
 	let testtext = "1234ASDF!@#$\n";
 	let serial_write_params = SerialWriteBufferParams {
 		buf: virtual_to_physical(VirtAddr::new(

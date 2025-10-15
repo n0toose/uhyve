@@ -17,7 +17,8 @@ use crate::v2::parameters::*;
 /// e.g., `HypercallAddress::Exit as u64`.
 #[non_exhaustive]
 #[repr(u64)]
-#[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
+// TODO: remove copy, clone
+#[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive, Hash)]
 pub enum HypercallAddress {
 	Exit = 0x1010,
 	SerialWriteByte = 0x1020,
@@ -37,6 +38,27 @@ pub enum HypercallAddress {
 }
 impl From<Hypercall<'_>> for HypercallAddress {
 	fn from(value: Hypercall) -> Self {
+		match value {
+			Hypercall::Exit(_) => Self::Exit,
+			Hypercall::FileClose(_) => Self::FileClose,
+			Hypercall::FileLseek(_) => Self::FileLseek,
+			Hypercall::FileOpen(_) => Self::FileOpen,
+			Hypercall::FileRead(_) => Self::FileRead,
+			Hypercall::FileUnlink(_) => Self::FileUnlink,
+			Hypercall::FileWrite(_) => Self::FileWrite,
+			Hypercall::GetTime(_) => Self::GetTime,
+			Hypercall::SerialReadBuffer(_) => Self::SerialReadBuffer,
+			Hypercall::SerialReadByte => Self::SerialReadByte,
+			Hypercall::SerialWriteBuffer(_) => Self::SerialWriteBuffer,
+			Hypercall::SerialWriteByte(_) => Self::SerialWriteByte,
+			Hypercall::Sleep(_) => Self::Sleep,
+			Hypercall::SharedMemOpen(_) => Self::SharedMemOpen,
+			Hypercall::SharedMemClose(_) => Self::SharedMemClose,
+		}
+	}
+}
+impl From<&Hypercall<'_>> for HypercallAddress {
+	fn from(value: &Hypercall) -> Self {
 		match value {
 			Hypercall::Exit(_) => Self::Exit,
 			Hypercall::FileClose(_) => Self::FileClose,
