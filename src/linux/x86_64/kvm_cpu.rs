@@ -518,7 +518,7 @@ impl VirtualCPU for KvmCpu {
 									.output(&[buf])
 									.unwrap_or_else(|e| error!("{e:?}")),
 								v1::Hypercall::SerialWriteBuffer(sysserialwrite) => {
-									// safety: as this buffer is only read and not used afterwards, we don't create multiple aliasing
+									// SAFETY: as this buffer is only read and not used afterwards, we don't create multiple aliasing
 									let buf = unsafe {
 										self
 											.peripherals
@@ -537,7 +537,7 @@ impl VirtualCPU for KvmCpu {
 										.unwrap_or_else(|e| error!("{e:?}"))
 								}
 								_ => panic!("Got unknown hypercall {hypercall:?}"),
-							};
+							}
 						} else {
 							if let Some(s) = self.stats.as_mut() {
 								s.increment_val(VmExit::PCIWrite)
@@ -649,7 +649,7 @@ impl VirtualCPU for KvmCpu {
 										.output(&[buf])
 										.unwrap_or_else(|e| error!("{e:?}")),
 									v2::Hypercall::SerialWriteBuffer(sysserialwrite) => {
-										// safety: as this buffer is only read and not used afterwards, we don't create multiple aliasing
+										// SAFETY: as this buffer is only read and not used afterwards, we don't create multiple aliasing
 										let buf = unsafe {
 											self
 													.peripherals
