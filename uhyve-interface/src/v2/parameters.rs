@@ -4,10 +4,9 @@ use bitflags::bitflags;
 
 use crate::GuestPhysAddr;
 /// Re-export of all unchanged parameters and flags from v1.
+pub use crate::parameters::*;
 pub use crate::v1::parameters::{
-	ALLOWED_OPEN_FLAGS, CloseParams, EBADF, EFAULT, EINVAL, ENOENT, ExitParams, LseekParams,
-	O_APPEND, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY, OpenParams,
-	SerialWriteBufferParams, UnlinkParams,
+	CloseParams, ExitParams, LseekParams, OpenParams, SerialWriteBufferParams, UnlinkParams,
 };
 
 /// Parameters for a [`FileWrite`](crate::v2::Hypercall::FileWrite) hypercall.

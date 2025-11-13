@@ -41,6 +41,10 @@ macro_rules! into_hypercall_addresses {
 }
 
 pub mod elf;
+
+/// Common parameters for versions 1 and 2 of the Hypercall Interface
+mod parameters;
+
 /// Version 1 of the Hypercall Interface
 pub mod v1;
 /// Version 2 of the Hypercall Interface
