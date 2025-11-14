@@ -294,7 +294,8 @@ impl<VirtBackend: VirtualizationBackend> UhyveVm<VirtBackend> {
 		// much later than v1, but before v2, we assume that all images that don't have a version
 		// embedded must be v1.
 
-		let serial_port = SerialPortBase::new(match object.uhyve_interface_version() {
+		let uhyve_interface_version = object.uhyve_interface_version();
+		let serial_port = SerialPortBase::new(match uhyve_interface_version {
 			#[cfg(target_arch = "aarch64")]
 			None | Some(UhyveIfVersion(1)) => uhyve_interface::v1::HypercallAddress::Uart as u64,
 			#[cfg(target_arch = "x86_64")]
@@ -334,6 +335,7 @@ impl<VirtBackend: VirtualizationBackend> UhyveVm<VirtBackend> {
 			peripherals.mem.guest_address,
 			kernel_end_address - guest_address,
 			legacy_mapping,
+			uhyve_interface_version,
 		);
 		trace!("VM initialization complete");
 
@@ -480,9 +482,16 @@ fn init_guest_mem(
 	guest_addr: GuestPhysAddr,
 	memory_size: u64,
 	legacy_mapping: bool,
+	uhyve_interface_version: Option<UhyveIfVersion>,
 ) {
 	trace!("Initialize guest memory");
-	crate::arch::init_guest_mem(mem, guest_addr, memory_size, legacy_mapping);
+	crate::arch::init_guest_mem(
+		mem,
+		guest_addr,
+		memory_size,
+		legacy_mapping,
+		uhyve_interface_version,
+	);
 }
 
 fn write_fdt_into_mem(
