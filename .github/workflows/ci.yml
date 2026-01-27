@@ -20,11 +20,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install cargo-careful
+        run: cargo install cargo-careful
       - name: Test
         run: |
-          cargo test --lib --no-fail-fast
-          cargo test --bins --examples --no-fail-fast
-          cargo test --doc --no-fail-fast
+          cargo careful test --lib --no-fail-fast
+          cargo careful test --bins --examples --no-fail-fast
+          cargo careful test --doc --no-fail-fast
     env:
       RUST_BACKTRACE: 1
 
@@ -45,8 +47,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install cargo-careful
+        run: cargo install cargo-careful
       - name: Integration Tests
-        run: timeout 15m cargo test --test '*' --no-fail-fast
+        run: timeout 15m cargo careful test --test '*' --no-fail-fast
 
   run_images:
     name: Run images
@@ -63,24 +67,26 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo build --locked
+      - name: Install cargo-careful
+        run: cargo install cargo-careful
       - name: Run images (No sandboxing)
         timeout-minutes: 1
         run: |
-          cargo run data/x86_64/hello_world --stats --file-isolation none
-          cargo run data/x86_64/rusty_demo --stats --file-isolation none
-          cargo run data/x86_64/hello_c --stats --file-isolation none
+          cargo careful run data/x86_64/hello_world --stats --file-isolation none
+          cargo careful run data/x86_64/rusty_demo --stats --file-isolation none
+          cargo careful run data/x86_64/hello_c --stats --file-isolation none
       - name: Run images (Default)
         timeout-minutes: 1
         run: |
-          cargo run data/x86_64/hello_world --stats
-          cargo run data/x86_64/rusty_demo --stats
-          cargo run data/x86_64/hello_c --stats
+          cargo careful run data/x86_64/hello_world --stats
+          cargo careful run data/x86_64/rusty_demo --stats
+          cargo careful run data/x86_64/hello_c --stats
       - name: Run images (Strict sandboxing)
         timeout-minutes: 1
         run: |
-          cargo run data/x86_64/hello_world --stats --file-isolation strict
-          cargo run data/x86_64/rusty_demo --stats --file-isolation strict
-          cargo run data/x86_64/hello_c --stats --file-isolation strict
+          cargo careful run data/x86_64/hello_world --stats --file-isolation strict
+          cargo careful run data/x86_64/rusty_demo --stats --file-isolation strict
+          cargo careful run data/x86_64/hello_c --stats --file-isolation strict
 
   fmt:
     name: Format
