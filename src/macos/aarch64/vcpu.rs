@@ -369,7 +369,7 @@ impl VirtualCPU for XhyveCpu {
 										sysclose,
 										&mut self.peripherals.file_mapping.lock().unwrap(),
 									),
-									v1::Hypercall::FileLseek(syslseek) => hypercall::lseek(
+									v1::Hypercall::FileLseek(syslseek) => hypercall::lseek_v1(
 										syslseek,
 										&mut self.peripherals.file_mapping.lock().unwrap(),
 									),

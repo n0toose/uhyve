@@ -450,26 +450,37 @@ pub fn write(
 	}
 }
 
+/// Handles a v1 lseek hypercall on the host, for which the struct has been modified.
+pub fn lseek_v1(syswrite: &mut v1::parameters::LseekParams, file_map: &mut UhyveFileMap) {
+	// TODO: Do this in a cleaner manner.
+	let mut tmp = v2::parameters::LseekParams {
+		offset: syswrite.offset as i64,
+		whence: syswrite.whence as u32,
+		fd: syswrite.fd,
+	};
+	lseek(&mut tmp, file_map);
+}
+
 /// Handles an lseek syscall on the host.
 pub fn lseek(syslseek: &mut LseekParams, file_map: &mut UhyveFileMap) {
 	syslseek.offset = match file_map.fdmap.get_mut(GuestFd(syslseek.fd.into_raw_fd())) {
 		Some(FdData::Raw(r)) => unsafe {
-			libc::lseek(*r, syslseek.offset as i64, syslseek.whence) as isize
+			libc::lseek(*r, syslseek.offset, syslseek.whence as i32) as i64
 		},
 		Some(FdData::Virtual { data, offset }) => {
 			#[forbid(unused_variables, unreachable_patterns)]
-			let tmp = match syslseek.whence {
+			let tmp: i64 = match syslseek.whence as i32 {
 				SEEK_SET => 0,
-				SEEK_CUR => *offset as isize,
-				SEEK_END => data.get().len() as isize,
+				SEEK_CUR => *offset as i64,
+				SEEK_END => data.get().len() as i64,
 				_ => -1,
 			};
 			if tmp >= 0 {
-				let tmp2 = (tmp as i64) + (syslseek.offset as i64);
+				let tmp2 = tmp + syslseek.offset;
 				match tmp2.try_into() {
 					Ok(tmp3) => {
 						*offset = tmp3;
-						tmp2 as isize
+						tmp2
 					}
 					_ => -1,
 				}

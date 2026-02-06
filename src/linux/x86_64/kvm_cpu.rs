@@ -507,7 +507,7 @@ impl VirtualCPU for KvmCpu {
 										self
 											.peripherals
 											.mem
-											.slice_at(sysserialwrite.buf, sysserialwrite.len)
+											.slice_at(sysserialwrite.buf, sysserialwrite.len as usize)
 											.unwrap_or_else(|e| {
 												panic!(
 													"Error {e}: Systemcall parameters for SerialWriteBuffer are invalid: {sysserialwrite:?}"
@@ -566,7 +566,7 @@ impl VirtualCPU for KvmCpu {
 									hypercall::close(sysclose, &mut file_mapping())
 								}
 								v1::Hypercall::FileLseek(syslseek) => {
-									hypercall::lseek(syslseek, &mut file_mapping())
+									hypercall::lseek_v1(syslseek, &mut file_mapping())
 								}
 								v1::Hypercall::FileOpen(sysopen) => hypercall::open(
 									&self.peripherals.mem,
