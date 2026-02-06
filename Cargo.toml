@@ -68,6 +68,7 @@ merge = "0.2"
 yoke = "0.8"
 nohash = "0.2"
 bitflags = "2.10"
+hermit-abi = "0.5.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 kvm-bindings = "0.14"

@@ -89,12 +89,12 @@ pub unsafe fn address_to_hypercall_v1(
 
 /// Translates the last error in `errno` to a value suitable to return from the hypercall.
 fn translate_last_errno() -> Option<i32> {
-	use v2::parameters;
+	use hermit_abi::errno;
 	let errno = io::Error::last_os_error().raw_os_error()?;
 
 	// A loop, because rust can't know for sure that errno numbers don't overlap on the host.
 	macro_rules! error_pairs {
-		($($x:ident),*) => {{[ $((libc::$x, parameters::$x)),* ]}}
+		($($x:ident),*) => {{[ $((libc::$x, errno::$x)),* ]}}
 	}
 	for (e_host, e_guest) in error_pairs!(EBADF, EEXIST, EFAULT, EINVAL, EIO, EPERM, ENOENT, EROFS)
 	{
