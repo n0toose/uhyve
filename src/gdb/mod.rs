@@ -1,3 +1,4 @@
+pub mod base;
 pub mod resume;
 
 use core::{
