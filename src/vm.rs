@@ -66,6 +66,8 @@ pub type DefaultBackend = crate::macos::XhyveVm;
 pub(crate) mod internal {
 	use std::sync::Arc;
 
+	use gdbstub::arch::Arch;
+
 	use crate::{
 		HypervisorResult,
 		vcpu::VirtualCPU,
@@ -75,6 +77,7 @@ pub(crate) mod internal {
 	/// Trait marking a interface for creating (accelerated) VMs.
 	pub trait VirtualizationBackendInternal: Sized {
 		type VCPU: 'static + VirtualCPU;
+		type GdbstubArch: 'static + Arch;
 		const NAME: &str;
 
 		/// Create a new CPU object

@@ -3,20 +3,21 @@ mod regs;
 mod section_offsets;
 
 use gdbstub::{
+	arch::Arch as GdbstubArch,
 	common::Tid,
 	target::{
 		self, Target, TargetError, TargetResult, ext::base::multithread as target_multithread,
 	},
 };
-use gdbstub_arch::x86::reg::X86_64CoreRegs;
 use uhyve_interface::GuestVirtAddr;
 
 use crate::{
 	HypervisorError, arch::virt_to_phys, gdb::GdbVcpuManager, linux::KvmVm, vcpu::VirtualCPU,
+	vm::internal::VirtualizationBackendInternal,
 };
 
 impl Target for GdbVcpuManager<KvmVm> {
-	type Arch = gdbstub_arch::x86::X86_64_SSE;
+	type Arch = <KvmVm as VirtualizationBackendInternal>::GdbstubArch;
 	type Error = HypervisorError;
 
 	// --------------- IMPORTANT NOTE ---------------
@@ -45,12 +46,20 @@ impl Target for GdbVcpuManager<KvmVm> {
 }
 
 impl target_multithread::MultiThreadBase for GdbVcpuManager<KvmVm> {
-	fn read_registers(&mut self, regs: &mut X86_64CoreRegs, tid: Tid) -> TargetResult<(), Self> {
+	fn read_registers(
+		&mut self,
+		regs: &mut <Self::Arch as GdbstubArch>::Registers,
+		tid: Tid,
+	) -> TargetResult<(), Self> {
 		regs::read(self.get_vm_cpu(tid).read().unwrap().get_vcpu(), regs)
 			.map_err(|error| TargetError::Errno(error.errno().try_into().unwrap()))
 	}
 
-	fn write_registers(&mut self, regs: &X86_64CoreRegs, tid: Tid) -> TargetResult<(), Self> {
+	fn write_registers(
+		&mut self,
+		regs: &<Self::Arch as GdbstubArch>::Registers,
+		tid: Tid,
+	) -> TargetResult<(), Self> {
 		regs::write(regs, self.get_vm_cpu(tid).read().unwrap().get_vcpu())
 			.map_err(|error| TargetError::Errno(error.errno().try_into().unwrap()))
 	}
